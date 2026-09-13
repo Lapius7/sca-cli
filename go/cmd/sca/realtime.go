@@ -52,14 +52,25 @@ func fetchPythonFromGitHub(targetDir string) error {
 		return fmt.Errorf("GitHubからの取得に失敗しました(%d): %s", res.StatusCode, url)
 	}
 
-	gz, err := gzip.NewReader(res.Body)
+	counter := &countingReader{r: res.Body}
+	sp := newSpinner("GitHubからダウンロード中")
+	sp.suffix = func() string { return formatBytes(counter.Total()) }
+	sp.start()
+	defer func() { sp.stop("ダウンロード完了 " + dim(formatBytes(counter.Total()))) }()
+
+	gz, err := gzip.NewReader(counter)
 	if err != nil {
 		return err
 	}
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
-	prefix := "" // 例: "cli-client_supabase-chat-app-main/python/"
+	// GitHubのcodeloadタルボールは "<repo>-<ref>/" というディレクトリの下に全ファイルを置く。
+	// 先頭のtarエントリから動的に推測すると、GitHubが差し込む pax_global_header
+	// (typeflag='g'、パスに"/"を含まない特殊エントリ)を誤って搔んでしまうため、
+	// リポジトリ名から直接プレフィックスを組み立てる。
+	repoBase := githubRepo[strings.LastIndex(githubRepo, "/")+1:]
+	prefix := fmt.Sprintf("%s-%s/python/", repoBase, githubRef)
 	found := false
 
 	for {
@@ -71,10 +82,6 @@ func fetchPythonFromGitHub(targetDir string) error {
 			return err
 		}
 
-		if prefix == "" {
-			parts := strings.SplitN(hdr.Name, "/", 2)
-			prefix = parts[0] + "/python/"
-		}
 		if !strings.HasPrefix(hdr.Name, prefix) {
 			continue
 		}
@@ -117,31 +124,54 @@ func fetchPythonFromGitHub(targetDir string) error {
 func cmdSetup() {
 	cfg := loadConfig()
 	dir := pythonDir(cfg)
-
+	needFetch := false
 	if _, err := os.Stat(filepath.Join(dir, "requirements.txt")); err != nil {
-		step("Pythonヘルパーが見つからないため、GitHubから取得します %s", dim(dir))
+		needFetch = true
+	}
+
+	total := 2
+	if needFetch {
+		total = 3
+	}
+	n := 0
+	nextStep := func(label string) {
+		n++
+		fmt.Printf("%s %s\n", bold(fmt.Sprintf("[%d/%d]", n, total)), label)
+	}
+
+	fmt.Printf("%s Realtime機能のセットアップを開始します\n\n", bold("sca setup"))
+
+	if needFetch {
+		nextStep(fmt.Sprintf("Pythonヘルパーを取得 %s", dim("(初回のみ)")))
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			fail(err)
 		}
 		if err := fetchPythonFromGitHub(dir); err != nil {
 			fail(fmt.Errorf("取得に失敗しました: %w", err))
 		}
-		success("取得しました")
 	}
 
 	venvDir := filepath.Join(dir, ".venv")
-	step("Python venvを準備しています %s", dim(venvDir))
-	run := func(name string, args ...string) {
-		c := exec.Command(name, args...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		if err := c.Run(); err != nil {
-			fail(fmt.Errorf("失敗しました(%s %v): %w", name, args, err))
-		}
+	nextStep("Python仮想環境を作成")
+	sp := newSpinner("venvを作成中")
+	sp.start()
+	if err := exec.Command("python3", "-m", "venv", venvDir).Run(); err != nil {
+		sp.stop("")
+		fail(fmt.Errorf("venvの作成に失敗しました: %w", err))
 	}
-	run("python3", "-m", "venv", venvDir)
-	run(filepath.Join(venvDir, "bin", "pip"), "install", "-r", filepath.Join(dir, "requirements.txt"))
-	success("完了しました。 %s / %s が使えるようになりました。", bold("sca room who"), bold("sca room join"))
+	sp.stop(fmt.Sprintf("venvを作成 %s", dim(venvDir)))
+
+	nextStep("依存パッケージをインストール")
+	pipCmd := exec.Command(filepath.Join(venvDir, "bin", "pip"), "install", "-r", filepath.Join(dir, "requirements.txt"))
+	pipCmd.Stdout = os.Stdout
+	pipCmd.Stderr = os.Stderr
+	if err := pipCmd.Run(); err != nil {
+		fail(fmt.Errorf("pip installに失敗しました: %w", err))
+	}
+
+	fmt.Println()
+	success("セットアップ完了！")
+	fmt.Printf("  %s %s / %s が使えるようになりました。\n", cyan("→"), bold("sca room who"), bold("sca room join"))
 }
 
 // execRealtimeHelper はPythonヘルパー(sca_realtime)をサブプロセスとして起動し、

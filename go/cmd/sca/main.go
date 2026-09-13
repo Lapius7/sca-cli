@@ -84,12 +84,14 @@ func cmdLogin(args []string) {
 			email = args[i+1]
 		}
 	}
-	step("マジックリンクを発行しています...")
+	sp := newSpinner("マジックリンクを発行してログイン中")
+	sp.start()
 	session, err := login(cfg, email)
 	if err != nil {
+		sp.stop("")
 		fail(err)
 	}
-	success("ログインしました %s", dim("("+session.Email+")"))
+	sp.stop(fmt.Sprintf("ログインしました %s", dim("("+session.Email+")")))
 }
 
 func cmdWhoami() {
