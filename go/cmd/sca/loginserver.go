@@ -91,7 +91,7 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 	}()
 
 	redirectTo := fmt.Sprintf("http://127.0.0.1:%d/callback", callbackPort)
-	authURL := strings.TrimRight(accountURL, "/") + "/?redirect_to=" + url.QueryEscape(redirectTo)
+	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?redirect_to=" + url.QueryEscape(redirectTo)
 
 	fmt.Printf("%s ブラウザでログインページを開きます:\n  %s\n", cyan("→"), authURL)
 	if err := openBrowser(authURL); err != nil {

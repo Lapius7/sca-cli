@@ -55,10 +55,13 @@ WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与は�
 問題ないが、CLIのソースコードに一切登場しない構成にすることで「念のため」のリスクも
 無くしている。
 
-`sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立ててブラウザを開き、
+`sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立て、
+`https://account.lapius7.com/oauth/authorize?redirect_to=...`をブラウザで開き、
 account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
 自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらはプロキシを経由せず
-account.lapius7.comに直接アクセスする。
+account.lapius7.comに直接アクセスする。`/oauth/authorize`は一般的なOAuth認可
+APIエンドポイントの見た目に合わせた専用パスで、`sandbox.lapius7.com/supabase-chat-app`・
+`post.lapius7.com`・`md.lapius7.com`などの既存サービスも同じ入口を共有している。
 
 別のSupabaseインスタンスに直接向けたい場合だけ`sca init`で雛形を作り、`SUPABASE_URL`/`ANON_KEY`を上書きできる(この場合はプロキシを経由しないので、自分のインスタンスのANON_KEYを指定する必要がある)。
 
