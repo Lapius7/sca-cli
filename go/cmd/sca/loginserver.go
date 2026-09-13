@@ -14,7 +14,6 @@ import (
 const (
 	accountURL   = "https://account.lapius7.com"
 	callbackPort = 8765
-	loginTimeout = 3 * time.Minute
 )
 
 // callbackHTML はブラウザに一瞬だけ表示するページ。GoTrueはトークンをURL fragment
@@ -98,18 +97,16 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 		warn("ブラウザを自動で開けませんでした。上記URLを手動で開いてください。")
 	}
 
-	select {
-	case res := <-resultCh:
-		if res.Error != "" || res.AccessToken == "" || res.RefreshToken == "" {
-			return nil, fmt.Errorf("ログインに失敗しました(トークンを受信できませんでした)")
-		}
-		email := fetchEmail(cfg, res.AccessToken)
-		session := Session{AccessToken: res.AccessToken, RefreshToken: res.RefreshToken, Email: email}
-		if err := saveSession(session); err != nil {
-			return nil, err
-		}
-		return &session, nil
-	case <-time.After(loginTimeout):
-		return nil, fmt.Errorf("タイムアウトしました(%s以内にブラウザでのログインが完了しませんでした)", loginTimeout)
+	// URLに有効期限付きトークンを乗せているわけではなく、ユーザーがブラウザで実際に
+	// 操作を終えるまで待つだけなので、タイムアウトは設けない(Ctrl+Cでいつでも中断できる)。
+	res := <-resultCh
+	if res.Error != "" || res.AccessToken == "" || res.RefreshToken == "" {
+		return nil, fmt.Errorf("ログインに失敗しました(トークンを受信できませんでした)")
 	}
+	email := fetchEmail(cfg, res.AccessToken)
+	session := Session{AccessToken: res.AccessToken, RefreshToken: res.RefreshToken, Email: email}
+	if err := saveSession(session); err != nil {
+		return nil, err
+	}
+	return &session, nil
 }
