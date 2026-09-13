@@ -4,7 +4,7 @@
 
 ## 構成
 
-- `go/` — 本体。ログイン(マジックリンク自動追跡)、ルームの一覧/作成/リネーム、REST API呼び出し全般を担当(Go標準ライブラリのみ、依存パッケージなし)
+- `go/` — 本体。ログイン(account.lapius7.comのSSOをブラウザ経由で利用)、ルームの一覧/作成/リネーム、REST API呼び出し全般を担当(Go標準ライブラリのみ、依存パッケージなし)
 - `python/` — Realtime(オンライン一覧・対話チャット)専用の内部ヘルパー。Supabase RealtimeのWebSocket(Presence)プロトコルは公式Pythonパッケージ(`supabase`/`realtime`)に頼るため、この部分だけPythonで実装し、Go側からサブプロセスとして呼び出す
 
 ユーザーが直接使うのは`go/`側のバイナリ(`sca`)だけで、Python側は`sca room who` / `sca room join`実行時に裏で自動的に呼ばれる。
@@ -42,12 +42,15 @@ sudo mv sca /usr/local/bin/
 
 ```bash
 sca init          # ~/.config/sca/config.env の雛形を作成
-# config.env に ANON_KEY / SERVICE_ROLE_KEY / EMAIL を書き込む
-# (値はsupabase.lapius7.com/.envから取得。SERVICE_ROLE_KEYはログインのマジックリンク生成にのみ使う)
+# config.env に ANON_KEY を書き込む(値はsupabase.lapius7.com/.envから取得)
 
 sca setup         # Realtime機能に必要なPythonヘルパー一式をGitHubから取得してvenvを作成(初回のみ)
-sca login         # ログイン(ブラウザ不要。マジックリンクを内部で発行して自動的にセッションを取得する)
+sca login         # ブラウザでaccount.lapius7.com(Lapount)にログインし、自動的にセッションを取得する
 ```
+
+`sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立ててブラウザを開き、
+account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
+自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。**SERVICE_ROLE_KEYをCLI側に置く必要は無い。**
 
 `sca setup`は、Pythonヘルパー(`python/`)が手元に無ければ自動的にGitHubのtarballから
 `python/`ディレクトリだけを取得して`~/.local/share/sca/python`に展開する
@@ -82,3 +85,4 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 
 - 対話セッション終了時、非同期タスクの後片付けに関する`Task was destroyed but it is pending!`という警告がstderrに出ることがある(cosmetic、動作・終了コードには影響しない)
 - Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても１人としてカウントされる(Web版と同じ仕様)
+- `sca login`は`sca`を実行しているマシン自身でブラウザが開ける環境が前提(ローカルPC等)。SSH先のサーバー上でそのまま実行しても、ブラウザが手元のマシンで開いてもコールバック(`127.0.0.1:8765`)はSSH先に届かない。リモートで使う場合は`ssh -L 8765:localhost:8765 ...`のようにポートフォワードすること

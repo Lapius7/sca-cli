@@ -42,7 +42,7 @@ func printUsage() {
 	rows := [][2]string{
 		{"sca init", "設定ファイルの雛形を作成する"},
 		{"sca setup", "Realtime機能に必要なPython環境を準備する"},
-		{"sca login [--email you@x.com]", "マジックリンクでログインする"},
+		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
 		{"sca whoami", "ログイン中のユーザーを表示する"},
 		{"sca room list", "ルーム一覧を表示する"},
@@ -78,20 +78,12 @@ func formatDate(iso string) string {
 
 func cmdLogin(args []string) {
 	cfg := loadConfig()
-	email := ""
-	for i, a := range args {
-		if a == "--email" && i+1 < len(args) {
-			email = args[i+1]
-		}
-	}
-	sp := newSpinner("マジックリンクを発行してログイン中")
-	sp.start()
-	session, err := login(cfg, email)
+	requireLoginConfig(cfg)
+	session, err := loginViaBrowser(cfg)
 	if err != nil {
-		sp.stop("")
 		fail(err)
 	}
-	sp.stop(fmt.Sprintf("ログインしました %s", dim("("+session.Email+")")))
+	success("ログインしました %s", dim("("+session.Email+")"))
 }
 
 func cmdWhoami() {

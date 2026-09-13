@@ -9,13 +9,11 @@ import (
 )
 
 // Config はconfig.envの内容。PythonHelperDir以外はPython側(sca_realtime/config.py)と
-// フィールド名・ファイルパスの意味を完全に一致させること。
+// フィールド名・ファイルパスの意味を完全一致させること。
 type Config struct {
-	SupabaseURL    string
-	AnonKey        string
-	ServiceRoleKey string
-	Email          string
-	PythonDir      string
+	SupabaseURL string
+	AnonKey     string
+	PythonDir   string
 }
 
 func configDir() string {
@@ -52,7 +50,7 @@ func loadConfig() Config {
 		}
 	}
 
-	for _, k := range []string{"SUPABASE_URL", "ANON_KEY", "SERVICE_ROLE_KEY", "EMAIL", "PYTHON_DIR"} {
+	for _, k := range []string{"SUPABASE_URL", "ANON_KEY", "PYTHON_DIR"} {
 		if v := os.Getenv(k); v != "" {
 			values[k] = v
 		}
@@ -62,8 +60,6 @@ func loadConfig() Config {
 		cfg.SupabaseURL = v
 	}
 	cfg.AnonKey = values["ANON_KEY"]
-	cfg.ServiceRoleKey = values["SERVICE_ROLE_KEY"]
-	cfg.Email = values["EMAIL"]
 	cfg.PythonDir = values["PYTHON_DIR"]
 	return cfg
 }
@@ -71,8 +67,6 @@ func loadConfig() Config {
 const configTemplate = `# sca (supabase-chat-app CLI) 設定ファイル
 SUPABASE_URL=https://supabase.lapius7.com
 ANON_KEY=
-SERVICE_ROLE_KEY=
-EMAIL=
 # 別マシンでpythonディレクトリのパスが異なる場合だけ指定(未指定ならデフォルトの場所を使う)
 # PYTHON_DIR=
 `
@@ -91,12 +85,12 @@ func cmdInit() {
 		fail(err)
 	}
 	success("設定ファイルの雛形を作成しました %s", dim(path))
-	fmt.Printf("  %s ANON_KEY / SERVICE_ROLE_KEY / EMAIL を書き込んでから %s を実行してください。\n", cyan("次:"), bold("sca login"))
+	fmt.Printf("  %s ANON_KEY を書き込んでから %s を実行してください。\n", cyan("次:"), bold("sca login"))
 }
 
 func requireLoginConfig(cfg Config) {
-	if cfg.AnonKey == "" || cfg.ServiceRoleKey == "" {
-		fmt.Fprintf(os.Stderr, "%s 設定が不足しています: ANON_KEY, SERVICE_ROLE_KEY\n", red("✗"))
+	if cfg.AnonKey == "" {
+		fmt.Fprintf(os.Stderr, "%s 設定が不足しています: ANON_KEY\n", red("✗"))
 		fmt.Fprintf(os.Stderr, "  %s で %s の雛形を作成し、値を書き込んでください。\n", bold("sca init"), configFilePath())
 		os.Exit(1)
 	}
