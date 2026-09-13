@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"text/tabwriter"
+	"time"
 )
 
 func main() {
@@ -20,7 +22,7 @@ func main() {
 		cmdLogin(os.Args[2:])
 	case "logout":
 		doLogout()
-		fmt.Println("ログアウトしました。")
+		success("ログアウトしました。")
 	case "whoami":
 		cmdWhoami()
 	case "room":
@@ -35,36 +37,43 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`sca - supabase-chat-app CLIクライアント
-
-Usage:
-  sca init                          設定ファイルの雛形を作成する
-  sca setup                         Realtime機能に必要なPython環境を準備する
-  sca login [--email you@x.com]     マジックリンクでログインする
-  sca logout                        ローカルのセッションを破棄する
-  sca whoami                        ログイン中のユーザーを表示する
-  sca room list                     ルーム一覧を表示する
-  sca room create <name>            ルームを作成する
-  sca room rename <room> <new_name> ルーム名を変更する(作成者のみ)
-  sca room who <room>               ルームに今いる人を表示する
-  sca room join <room>              ルームに入って対話チャットを開始する
-
-<room> はルームIDまたは名前のどちらでも指定できます。`)
+	fmt.Printf("%s - supabase-chat-app CLIクライアント\n\n", bold("sca"))
+	fmt.Println(bold("Usage:"))
+	rows := [][2]string{
+		{"sca init", "設定ファイルの雛形を作成する"},
+		{"sca setup", "Realtime機能に必要なPython環境を準備する"},
+		{"sca login [--email you@x.com]", "マジックリンクでログインする"},
+		{"sca logout", "ローカルのセッションを破棄する"},
+		{"sca whoami", "ログイン中のユーザーを表示する"},
+		{"sca room list", "ルーム一覧を表示する"},
+		{"sca room create <name>", "ルームを作成する"},
+		{"sca room rename <room> <new_name>", "ルーム名を変更する(作成者のみ)"},
+		{"sca room who <room>", "ルームに今いる人を表示する"},
+		{"sca room join <room>", "ルームに入って対話チャットを開始する"},
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	for _, r := range rows {
+		fmt.Fprintf(w, "  %s\t%s\n", cyan(r[0]), r[1])
+	}
+	w.Flush()
+	fmt.Println()
+	fmt.Println(dim("<room> はルームIDまたは名前のどちらでも指定できます。"))
 }
 
 func requireSession() (Config, *Session) {
 	cfg := loadConfig()
 	session, err := loadSession()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "ログインしていません。先に `sca login` を実行してください。")
-		os.Exit(1)
+		fail(fmt.Errorf("ログインしていません。先に `sca login` を実行してください"))
 	}
 	return cfg, session
 }
 
-func fail(err error) {
-	fmt.Fprintln(os.Stderr, "エラー:", err)
-	os.Exit(1)
+func formatDate(iso string) string {
+	if t, err := time.Parse(time.RFC3339Nano, iso); err == nil {
+		return t.Local().Format("2006-01-02 15:04")
+	}
+	return iso
 }
 
 func cmdLogin(args []string) {
@@ -75,11 +84,12 @@ func cmdLogin(args []string) {
 			email = args[i+1]
 		}
 	}
+	step("マジックリンクを発行しています...")
 	session, err := login(cfg, email)
 	if err != nil {
 		fail(err)
 	}
-	fmt.Printf("ログインしました(%s)。セッションを保存しました。\n", session.Email)
+	success("ログインしました %s", dim("("+session.Email+")"))
 }
 
 func cmdWhoami() {
@@ -88,7 +98,7 @@ func cmdWhoami() {
 	if err != nil {
 		fail(err)
 	}
-	fmt.Printf("%s (%s)\n", name, id)
+	fmt.Printf("%s %s\n", bold(name), dim("("+id+")"))
 }
 
 func cmdRoom(args []string) {
@@ -109,13 +119,16 @@ func cmdRoom(args []string) {
 			return
 		}
 		cache := map[string]string{}
+		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", bold("NAME"), bold("ID"), bold("CREATED BY"), bold("CREATED AT"))
 		for _, r := range roomList {
 			creator := "?"
 			if r.CreatedBy != nil {
 				creator = getDisplayName(cfg, session, *r.CreatedBy, cache)
 			}
-			fmt.Printf("%s  %s  (作成者: %s, 作成日時: %s)\n", r.ID, r.Name, creator, r.CreatedAt)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", bold(r.Name), dim(r.ID), creator, dim(formatDate(r.CreatedAt)))
 		}
+		w.Flush()
 
 	case "create":
 		if len(args) < 2 {
@@ -130,7 +143,7 @@ func cmdRoom(args []string) {
 		if err != nil {
 			fail(err)
 		}
-		fmt.Printf("作成しました: %s  %s\n", room.ID, room.Name)
+		success("作成しました %s %s", bold(room.Name), dim(room.ID))
 
 	case "rename":
 		if len(args) < 3 {
@@ -145,7 +158,7 @@ func cmdRoom(args []string) {
 		if err != nil {
 			fail(err)
 		}
-		fmt.Printf("リネームしました: %s  %s\n", updated.ID, updated.Name)
+		success("リネームしました %s → %s", dim(room.Name), bold(updated.Name))
 
 	case "who":
 		if len(args) < 2 {

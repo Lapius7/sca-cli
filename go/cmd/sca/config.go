@@ -80,26 +80,24 @@ EMAIL=
 func cmdInit() {
 	dir := configDir()
 	if err := os.MkdirAll(dir, 0700); err != nil {
-		fmt.Fprintln(os.Stderr, "エラー:", err)
-		os.Exit(1)
+		fail(err)
 	}
 	path := configFilePath()
 	if _, err := os.Stat(path); err == nil {
-		fmt.Printf("既に存在します: %s\n", path)
+		warn("既に存在します: %s", path)
 		return
 	}
 	if err := os.WriteFile(path, []byte(configTemplate), 0600); err != nil {
-		fmt.Fprintln(os.Stderr, "エラー:", err)
-		os.Exit(1)
+		fail(err)
 	}
-	fmt.Printf("設定ファイルの雛形を作成しました: %s\n", path)
-	fmt.Println("ANON_KEY / SERVICE_ROLE_KEY / EMAIL を書き込んでから `sca login` を実行してください。")
+	success("設定ファイルの雛形を作成しました %s", dim(path))
+	fmt.Printf("  %s ANON_KEY / SERVICE_ROLE_KEY / EMAIL を書き込んでから %s を実行してください。\n", cyan("次:"), bold("sca login"))
 }
 
 func requireLoginConfig(cfg Config) {
 	if cfg.AnonKey == "" || cfg.ServiceRoleKey == "" {
-		fmt.Fprintln(os.Stderr, "設定が不足しています: ANON_KEY, SERVICE_ROLE_KEY")
-		fmt.Fprintf(os.Stderr, "`sca init` で %s の雛形を作成し、値を書き込んでください。\n", configFilePath())
+		fmt.Fprintf(os.Stderr, "%s 設定が不足しています: ANON_KEY, SERVICE_ROLE_KEY\n", red("✗"))
+		fmt.Fprintf(os.Stderr, "  %s で %s の雛形を作成し、値を書き込んでください。\n", bold("sca init"), configFilePath())
 		os.Exit(1)
 	}
 }

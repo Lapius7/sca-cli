@@ -119,32 +119,29 @@ func cmdSetup() {
 	dir := pythonDir(cfg)
 
 	if _, err := os.Stat(filepath.Join(dir, "requirements.txt")); err != nil {
-		fmt.Printf("Pythonヘルパーが見つからないため、GitHubから取得します: %s\n", dir)
+		step("Pythonヘルパーが見つからないため、GitHubから取得します %s", dim(dir))
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			fmt.Fprintln(os.Stderr, "エラー:", err)
-			os.Exit(1)
+			fail(err)
 		}
 		if err := fetchPythonFromGitHub(dir); err != nil {
-			fmt.Fprintln(os.Stderr, "取得に失敗しました:", err)
-			os.Exit(1)
+			fail(fmt.Errorf("取得に失敗しました: %w", err))
 		}
-		fmt.Println("取得しました。")
+		success("取得しました")
 	}
 
 	venvDir := filepath.Join(dir, ".venv")
-	fmt.Printf("Python venvを準備しています: %s\n", venvDir)
+	step("Python venvを準備しています %s", dim(venvDir))
 	run := func(name string, args ...string) {
 		c := exec.Command(name, args...)
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		if err := c.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "失敗しました(%s %v): %v\n", name, args, err)
-			os.Exit(1)
+			fail(fmt.Errorf("失敗しました(%s %v): %w", name, args, err))
 		}
 	}
 	run("python3", "-m", "venv", venvDir)
 	run(filepath.Join(venvDir, "bin", "pip"), "install", "-r", filepath.Join(dir, "requirements.txt"))
-	fmt.Println("完了しました。`sca room who` / `sca room join` が使えるようになりました。")
+	success("完了しました。 %s / %s が使えるようになりました。", bold("sca room who"), bold("sca room join"))
 }
 
 // execRealtimeHelper はPythonヘルパー(sca_realtime)をサブプロセスとして起動し、
