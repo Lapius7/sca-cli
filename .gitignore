@@ -1,0 +1,11 @@
+# Go
+go/sca
+go/*.exe
+
+# Python
+python/.venv/
+python/**/__pycache__/
+python/**/*.egg-info/
+
+# ローカル設定(実際のキーが入るため)
+.config/
