@@ -8,6 +8,15 @@ import (
 	"strings"
 )
 
+// defaultSupabaseURL/defaultAnonKey はsupabase.lapius7.comの既定値。ANON_KEYはRLSで
+// 保護される前提の公開キーであり(sandbox.lapius7.com/supabase-chat-app/のJSバンドルに
+// そのまま埋め込まれているのと同じ機密度)、CLIに同梱しても問題ない。これにより
+// 一般ユーザーはconfig.envを一切書かずに`sca login`だけで使い始められる。
+const (
+	defaultSupabaseURL = "https://supabase.lapius7.com"
+	defaultAnonKey     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg5MTYwNDMwLCJleHAiOjE5NDY4NDA0MzB9.bk3hxt1IXRa2UlACmQ3N1MzacqGnN7Od-gQcRpHe4Qs"
+)
+
 // Config はconfig.envの内容。PythonHelperDir以外はPython側(sca_realtime/config.py)と
 // フィールド名・ファイルパスの意味を完全一致させること。
 type Config struct {
@@ -28,7 +37,7 @@ func configFilePath() string  { return filepath.Join(configDir(), "config.env") 
 func sessionFilePath() string { return filepath.Join(configDir(), "session.json") }
 
 func loadConfig() Config {
-	cfg := Config{SupabaseURL: "https://supabase.lapius7.com"}
+	cfg := Config{SupabaseURL: defaultSupabaseURL, AnonKey: defaultAnonKey}
 	values := map[string]string{}
 
 	if data, err := os.ReadFile(configFilePath()); err == nil {
@@ -59,14 +68,20 @@ func loadConfig() Config {
 	if v, ok := values["SUPABASE_URL"]; ok {
 		cfg.SupabaseURL = v
 	}
-	cfg.AnonKey = values["ANON_KEY"]
+	if v, ok := values["ANON_KEY"]; ok {
+		cfg.AnonKey = v
+	}
 	cfg.PythonDir = values["PYTHON_DIR"]
 	return cfg
 }
 
+// configTemplateはデフォルトのsupabase.lapius7.com以外に向ける場合だけ使う上書き用の雛形。
+// 通常利用ではsca init/config.envは不要(sca loginだけで動く)。
 const configTemplate = `# sca (supabase-chat-app CLI) 設定ファイル
-SUPABASE_URL=https://supabase.lapius7.com
-ANON_KEY=
+# 通常は書き換え不要(既定でsupabase.lapius7.comに繋がる)。
+# 別のSupabaseインスタンスに向けたい場合だけ以下を書き換える。
+# SUPABASE_URL=
+# ANON_KEY=
 # 別マシンでpythonディレクトリのパスが異なる場合だけ指定(未指定ならデフォルトの場所を使う)
 # PYTHON_DIR=
 `
@@ -85,13 +100,5 @@ func cmdInit() {
 		fail(err)
 	}
 	success("設定ファイルの雛形を作成しました %s", dim(path))
-	fmt.Printf("  %s ANON_KEY を書き込んでから %s を実行してください。\n", cyan("次:"), bold("sca login"))
-}
-
-func requireLoginConfig(cfg Config) {
-	if cfg.AnonKey == "" {
-		fmt.Fprintf(os.Stderr, "%s 設定が不足しています: ANON_KEY\n", red("✗"))
-		fmt.Fprintf(os.Stderr, "  %s で %s の雛形を作成し、値を書き込んでください。\n", bold("sca init"), configFilePath())
-		os.Exit(1)
-	}
+	fmt.Printf("  %s 通常は書き換え不要です。そのまま %s を実行できます。\n", cyan("次:"), bold("sca login"))
 }

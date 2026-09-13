@@ -40,7 +40,7 @@ func printUsage() {
 	fmt.Printf("%s - supabase-chat-app CLIクライアント\n\n", bold("sca"))
 	fmt.Println(bold("Usage:"))
 	rows := [][2]string{
-		{"sca init", "設定ファイルの雛形を作成する"},
+		{"sca init", "設定ファイルの雛形を作成する(通常は不要)"},
 		{"sca setup", "Realtime機能に必要なPython環境を準備する"},
 		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
@@ -78,7 +78,6 @@ func formatDate(iso string) string {
 
 func cmdLogin(args []string) {
 	cfg := loadConfig()
-	requireLoginConfig(cfg)
 	session, err := loginViaBrowser(cfg)
 	if err != nil {
 		fail(err)

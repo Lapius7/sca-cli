@@ -41,16 +41,20 @@ sudo mv sca /usr/local/bin/
 ### 初期設定
 
 ```bash
-sca init          # ~/.config/sca/config.env の雛形を作成
-# config.env に ANON_KEY を書き込む(値はsupabase.lapius7.com/.envから取得)
-
 sca setup         # Realtime機能に必要なPythonヘルパー一式をGitHubから取得してvenvを作成(初回のみ)
 sca login         # ブラウザでaccount.lapius7.com(Lapount)にログインし、自動的にセッションを取得する
 ```
 
+インストール後、設定ファイルを一切書かずに`sca login`だけで使い始められる
+(`SUPABASE_URL`/`ANON_KEY`は既定でsupabase.lapius7.comを向くようバイナリに埋め込み済み。
+`ANON_KEY`はRLSで保護される前提の公開キーで、そもそもWeb版のJSバンドルにもそのまま
+入っているものなので同梱して問題ない。**SERVICE_ROLE_KEYのような秘密情報はCLI側に一切持たない**)。
+
 `sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立ててブラウザを開き、
 account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
-自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。**SERVICE_ROLE_KEYをCLI側に置く必要は無い。**
+自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。
+
+別のSupabaseインスタンスに向けたい場合だけ`sca init`で雛形を作り、`SUPABASE_URL`/`ANON_KEY`を上書きできる。
 
 `sca setup`は、Pythonヘルパー(`python/`)が手元に無ければ自動的にGitHubのtarballから
 `python/`ディレクトリだけを取得して`~/.local/share/sca/python`に展開する
