@@ -8,12 +8,12 @@ import (
 	"strings"
 )
 
-// defaultSupabaseURL はCLI専用のリバースプロキシ(sca-proxy.lapius7.com、
-// web/sca-proxy.lapius7.com/main.go)を指す。このプロキシがsupabase.lapius7.com
-// への全リクエストにANON_KEYを付与してから中継するため、CLI自体はANON_KEYを
-// 一切持たない(ソースコードにも実行時の設定にも一度も登場しない)。
+// defaultSupabaseURL はCLI専用のリバースプロキシ(sandbox.lapius7.com/supabase-chat-app/api/、
+// 実体はweb/sandbox.lapius7.com/supabase-chat-app/proxy/main.go)を指す。このプロキシが
+// supabase.lapius7.comへの全リクエストにANON_KEYを付与してから中継するため、CLI自体は
+// ANON_KEYを一切持たない(ソースコードにも実行時の設定にも一度も登場しない)。
 // これにより一般ユーザーはconfig.envを一切書かずに`sca login`だけで使い始められる。
-const defaultSupabaseURL = "https://sca-proxy.lapius7.com"
+const defaultSupabaseURL = "https://sandbox.lapius7.com/supabase-chat-app/api"
 
 // Config はconfig.envの内容。PythonHelperDir以外はPython側(sca_realtime/config.py)と
 // フィールド名・ファイルパスの意味を完全一致させること。
@@ -73,10 +73,10 @@ func loadConfig() Config {
 	return cfg
 }
 
-// configTemplateはデフォルトのsca-proxy.lapius7.com以外に向ける場合だけ使う上書き用の雛形。
-// 通常利用ではsca init/config.envは不要(sca loginだけで動く)。
+// configTemplateはデフォルトのsandbox.lapius7.com/supabase-chat-app/api/以外に
+// 向ける場合だけ使う上書き用の雛形。通常利用ではsca init/config.envは不要(sca loginだけで動く)。
 const configTemplate = `# sca (supabase-chat-app CLI) 設定ファイル
-# 通常は書き換え不要(既定でsca-proxy.lapius7.com経由でsupabase.lapius7.comに繋がる)。
+# 通常は書き換え不要(既定でsandbox.lapius7.com/supabase-chat-app/api/経由でsupabase.lapius7.comに繋がる)。
 # 自前のSupabaseインスタンスに直接向けたい場合だけ以下を書き換える
 # (その場合はANON_KEYも自分のインスタンスのものを指定する必要がある)。
 # SUPABASE_URL=

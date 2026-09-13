@@ -46,16 +46,18 @@ sca login         # ブラウザでaccount.lapius7.com(Lapount)にログイン�
 ```
 
 インストール後、設定ファイルを一切書かずに`sca login`だけで使い始められる。
-CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ`sca-proxy.lapius7.com`
-(`web/sca-proxy.lapius7.com/main.go`、REST/Auth/Realtime WebSocketをすべて中継する)経由で
-通信する。ANON_KEYの付与はこのプロキシだけが行うため、**CLI(Go/Pythonどちら側にも)は
-ANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される前提の非秘匿な値(Web版のJS
-バンドルにもそのまま入っている)なので厉密には埋め込んでも問題ないが、CLIのソースコードに
-一切登場しない構成にすることで「念のため」のリスクも無くしている。
+CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ
+`https://sandbox.lapius7.com/supabase-chat-app/api/`
+(実体は`web/sandbox.lapius7.com/supabase-chat-app/proxy/main.go`、REST/Auth/Realtime
+WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与はこのプロキシだけが行うため、
+**CLI(Go/Pythonどちら側にも)はANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される
+前提の非秘匿な値(Web版のJSバンドルにもそのまま入っている)なので厉密には埋め込んでも
+問題ないが、CLIのソースコードに一切登場しない構成にすることで「念のため」のリスクも
+無くしている。
 
 `sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立ててブラウザを開き、
 account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
-自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらはsca-proxyを経由せず
+自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらはプロキシを経由せず
 account.lapius7.comに直接アクセスする。
 
 別のSupabaseインスタンスに直接向けたい場合だけ`sca init`で雛形を作り、`SUPABASE_URL`/`ANON_KEY`を上書きできる(この場合はプロキシを経由しないので、自分のインスタンスのANON_KEYを指定する必要がある)。
@@ -88,7 +90,7 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 - ルームの削除・メッセージの編集/削除は現状のRLSポリシーが対応していないため未実装(将来必要になれば`account.lapius7.com/admin/rls-policy`でポリシー追加が先)
 - `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
 - 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`python/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
-- `sca-proxy.lapius7.com`(`web/sca-proxy.lapius7.com/`、このリポジトリの外側でVPS上にpm2常駐)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダー(とRealtimeのクエリパラメータの`apikey`)を必ず上書きする以外は何もしない
+- プロキシ本体(`web/sandbox.lapius7.com/supabase-chat-app/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/supabase-chat-app/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダー(とRealtimeのクエリパラメータの`apikey`)を必ず上書きする以外は何もしない
 
 ## 既知の制約
 
