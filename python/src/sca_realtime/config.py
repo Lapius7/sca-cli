@@ -1,9 +1,13 @@
 """設定ファイルの読み込み(Go側の`sca init`/`sca login`が書いたものをそのまま読む)。
 
-パス・環境変数名はGo側(cmd/sca/config.go)と完全に一致させること:
+パス・環境変数名はGo側(cmd/sca/config.go)と完全一致させること:
 - ディレクトリ: `$SCA_CONFIG_DIR`(未設定なら `~/.config/sca`)
-- 設定: `config.env`(SUPABASE_URL / ANON_KEY / SERVICE_ROLE_KEY / EMAIL)
+- 設定: `config.env`(SUPABASE_URL / ANON_KEY / PYTHON_DIR)
 - セッション: `session.json`({"access_token","refresh_token","email"})
+
+既定のSUPABASE_URLはsupabase.lapius7.com自体ではなく、CLI専用のリバースプロキシ
+(sca-proxy.lapius7.com)を指す。このプロキシがANON_KEYを付与して中継するため、
+Python側もANON_KEYを一切持たない(空文字のまま送っても、プロキシ側で上書きされる)。
 """
 
 from __future__ import annotations
@@ -16,7 +20,11 @@ CONFIG_FILE = CONFIG_DIR / "config.env"
 SESSION_FILE = CONFIG_DIR / "session.json"
 
 DEFAULTS = {
-    "SUPABASE_URL": "https://supabase.lapius7.com",
+    "SUPABASE_URL": "https://sca-proxy.lapius7.com",
+    # supabase-pyはsupabase_keyが空文字だと起動時にエラーになるため、意味のない
+    # プレースホルダーを渡す(sca-proxy.lapius7.com側で実際のANON_KEYに必ず
+    # 上書きされるので、ここに何を書いても実際の認証には使われない)。
+    "ANON_KEY": "sca-proxy-handles-this",
 }
 
 
@@ -32,7 +40,7 @@ def load_config() -> dict:
             value = value.strip()
             if value:
                 values[key] = value
-    for key in ("SUPABASE_URL", "ANON_KEY", "SERVICE_ROLE_KEY", "EMAIL"):
+    for key in ("SUPABASE_URL", "ANON_KEY", "PYTHON_DIR"):
         if os.environ.get(key):
             values[key] = os.environ[key]
     return values

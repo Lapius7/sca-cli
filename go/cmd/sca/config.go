@@ -8,14 +8,12 @@ import (
 	"strings"
 )
 
-// defaultSupabaseURL/defaultAnonKey はsupabase.lapius7.comの既定値。ANON_KEYはRLSで
-// 保護される前提の公開キーであり(sandbox.lapius7.com/supabase-chat-app/のJSバンドルに
-// そのまま埋め込まれているのと同じ機密度)、CLIに同梱しても問題ない。これにより
-// 一般ユーザーはconfig.envを一切書かずに`sca login`だけで使い始められる。
-const (
-	defaultSupabaseURL = "https://supabase.lapius7.com"
-	defaultAnonKey     = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzg5MTYwNDMwLCJleHAiOjE5NDY4NDA0MzB9.bk3hxt1IXRa2UlACmQ3N1MzacqGnN7Od-gQcRpHe4Qs"
-)
+// defaultSupabaseURL はCLI専用のリバースプロキシ(sca-proxy.lapius7.com、
+// web/sca-proxy.lapius7.com/main.go)を指す。このプロキシがsupabase.lapius7.com
+// への全リクエストにANON_KEYを付与してから中継するため、CLI自体はANON_KEYを
+// 一切持たない(ソースコードにも実行時の設定にも一度も登場しない)。
+// これにより一般ユーザーはconfig.envを一切書かずに`sca login`だけで使い始められる。
+const defaultSupabaseURL = "https://sca-proxy.lapius7.com"
 
 // Config はconfig.envの内容。PythonHelperDir以外はPython側(sca_realtime/config.py)と
 // フィールド名・ファイルパスの意味を完全一致させること。
@@ -37,7 +35,7 @@ func configFilePath() string  { return filepath.Join(configDir(), "config.env") 
 func sessionFilePath() string { return filepath.Join(configDir(), "session.json") }
 
 func loadConfig() Config {
-	cfg := Config{SupabaseURL: defaultSupabaseURL, AnonKey: defaultAnonKey}
+	cfg := Config{SupabaseURL: defaultSupabaseURL}
 	values := map[string]string{}
 
 	if data, err := os.ReadFile(configFilePath()); err == nil {
@@ -75,11 +73,12 @@ func loadConfig() Config {
 	return cfg
 }
 
-// configTemplateはデフォルトのsupabase.lapius7.com以外に向ける場合だけ使う上書き用の雛形。
+// configTemplateはデフォルトのsca-proxy.lapius7.com以外に向ける場合だけ使う上書き用の雛形。
 // 通常利用ではsca init/config.envは不要(sca loginだけで動く)。
 const configTemplate = `# sca (supabase-chat-app CLI) 設定ファイル
-# 通常は書き換え不要(既定でsupabase.lapius7.comに繋がる)。
-# 別のSupabaseインスタンスに向けたい場合だけ以下を書き換える。
+# 通常は書き換え不要(既定でsca-proxy.lapius7.com経由でsupabase.lapius7.comに繋がる)。
+# 自前のSupabaseインスタンスに直接向けたい場合だけ以下を書き換える
+# (その場合はANON_KEYも自分のインスタンスのものを指定する必要がある)。
 # SUPABASE_URL=
 # ANON_KEY=
 # 別マシンでpythonディレクトリのパスが異なる場合だけ指定(未指定ならデフォルトの場所を使う)

@@ -45,16 +45,20 @@ sca setup         # Realtime機能に必要なPythonヘルパー一式をGitHub�
 sca login         # ブラウザでaccount.lapius7.com(Lapount)にログインし、自動的にセッションを取得する
 ```
 
-インストール後、設定ファイルを一切書かずに`sca login`だけで使い始められる
-(`SUPABASE_URL`/`ANON_KEY`は既定でsupabase.lapius7.comを向くようバイナリに埋め込み済み。
-`ANON_KEY`はRLSで保護される前提の公開キーで、そもそもWeb版のJSバンドルにもそのまま
-入っているものなので同梱して問題ない。**SERVICE_ROLE_KEYのような秘密情報はCLI側に一切持たない**)。
+インストール後、設定ファイルを一切書かずに`sca login`だけで使い始められる。
+CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ`sca-proxy.lapius7.com`
+(`web/sca-proxy.lapius7.com/main.go`、REST/Auth/Realtime WebSocketをすべて中継する)経由で
+通信する。ANON_KEYの付与はこのプロキシだけが行うため、**CLI(Go/Pythonどちら側にも)は
+ANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される前提の非秘匿な値(Web版のJS
+バンドルにもそのまま入っている)なので厉密には埋め込んでも問題ないが、CLIのソースコードに
+一切登場しない構成にすることで「念のため」のリスクも無くしている。
 
 `sca login`はローカルに一時HTTPサーバー(`127.0.0.1:8765`)を立ててブラウザを開き、
 account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
-自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。
+自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらはsca-proxyを経由せず
+account.lapius7.comに直接アクセスする。
 
-別のSupabaseインスタンスに向けたい場合だけ`sca init`で雛形を作り、`SUPABASE_URL`/`ANON_KEY`を上書きできる。
+別のSupabaseインスタンスに直接向けたい場合だけ`sca init`で雛形を作り、`SUPABASE_URL`/`ANON_KEY`を上書きできる(この場合はプロキシを経由しないので、自分のインスタンスのANON_KEYを指定する必要がある)。
 
 `sca setup`は、Pythonヘルパー(`python/`)が手元に無ければ自動的にGitHubのtarballから
 `python/`ディレクトリだけを取得して`~/.local/share/sca/python`に展開する
@@ -84,6 +88,7 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 - ルームの削除・メッセージの編集/削除は現状のRLSポリシーが対応していないため未実装(将来必要になれば`account.lapius7.com/admin/rls-policy`でポリシー追加が先)
 - `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
 - 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`python/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
+- `sca-proxy.lapius7.com`(`web/sca-proxy.lapius7.com/`、このリポジトリの外側でVPS上にpm2常駐)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダー(とRealtimeのクエリパラメータの`apikey`)を必ず上書きする以外は何もしない
 
 ## 既知の制約
 
