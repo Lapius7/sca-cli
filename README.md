@@ -11,7 +11,16 @@
 
 ## セットアップ
 
-### `go install`で(推奨)
+### インストーラースクリプトで(推奨)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Lapius7/cli-client_supabase-chat-app/main/install.sh | sh
+```
+
+Go自体のインストール状況を確認し、ビルドの進行状況・インストール先・PATHの警告・次のステップまで1画面で
+案内する(内部では`go install`を使うが、表示はこのスクリプトが整えている)。
+
+### `go install`で直接
 
 ```bash
 go install github.com/lapius7/cli-client_supabase-chat-app/go/cmd/sca@latest
@@ -72,4 +81,4 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 ## 既知の制約
 
 - 対話セッション終了時、非同期タスクの後片付けに関する`Task was destroyed but it is pending!`という警告がstderrに出ることがある(cosmetic、動作・終了コードには影響しない)
-- Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても1人としてカウントされる(Web版と同じ仕様)
+- Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても１人としてカウントされる(Web版と同じ仕様)
