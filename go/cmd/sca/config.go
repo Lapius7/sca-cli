@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -73,31 +72,7 @@ func loadConfig() Config {
 	return cfg
 }
 
-// configTemplateはデフォルトのsandbox.lapius7.com/supabase-chat-app/api/以外に
-// 向ける場合だけ使う上書き用の雛形。通常利用ではsca init/config.envは不要(sca loginだけで動く)。
-const configTemplate = `# sca (supabase-chat-app CLI) 設定ファイル
-# 通常は書き換え不要(既定でsandbox.lapius7.com/supabase-chat-app/api/経由でsupabase.lapius7.comに繋がる)。
-# 自前のSupabaseインスタンスに直接向けたい場合だけ以下を書き換える
-# (その場合はANON_KEYも自分のインスタンスのものを指定する必要がある)。
-# SUPABASE_URL=
-# ANON_KEY=
-# 別マシンでpythonディレクトリのパスが異なる場合だけ指定(未指定ならデフォルトの場所を使う)
-# PYTHON_DIR=
-`
-
-func cmdInit() {
-	dir := configDir()
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		fail(err)
-	}
-	path := configFilePath()
-	if _, err := os.Stat(path); err == nil {
-		warn("既に存在します: %s", path)
-		return
-	}
-	if err := os.WriteFile(path, []byte(configTemplate), 0600); err != nil {
-		fail(err)
-	}
-	success("設定ファイルの雛形を作成しました %s", dim(path))
-	fmt.Printf("  %s 通常は書き換え不要です。そのまま %s を実行できます。\n", cyan("次:"), bold("sca login"))
-}
+// config.envは通常のユーザーには一切不要(sca loginだけで動く)。自前のSupabase
+// インスタンスに直接向けたい上級者向けの上書き手段としてのみ残しており、
+// 必要な場合は自分で ~/.config/sca/config.env (SUPABASE_URL=.../ANON_KEY=...) を
+// 作成するか、同名の環境変数を設定する(専用の雛形生成コマンドはあえて用意しない)。

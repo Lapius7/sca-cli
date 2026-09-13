@@ -14,10 +14,13 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "init":
-		cmdInit()
 	case "setup":
-		cmdSetup()
+		// 通常は`sca room who`/`sca room join`実行時に自動で行われるので
+		// 隠しコマンド扱い(printUsageには出さない)。手動での再実行・トラブル時用。
+		if err := ensurePythonReady(loadConfig()); err != nil {
+			fail(err)
+		}
+		success("Realtime機能の準備ができています。")
 	case "login":
 		cmdLogin(os.Args[2:])
 	case "logout":
@@ -40,8 +43,6 @@ func printUsage() {
 	fmt.Printf("%s - supabase-chat-app CLIクライアント\n\n", bold("sca"))
 	fmt.Println(bold("Usage:"))
 	rows := [][2]string{
-		{"sca init", "設定ファイルの雛形を作成する(通常は不要)"},
-		{"sca setup", "Realtime機能に必要なPython環境を準備する"},
 		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
 		{"sca whoami", "ログイン中のユーザーを表示する"},

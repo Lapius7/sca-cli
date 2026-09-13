@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -41,12 +40,15 @@ func restRequest(cfg Config, session *Session, method, path, schema string, body
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, wrapNetworkError(err)
 	}
 	defer res.Body.Close()
 	respBody, _ := io.ReadAll(res.Body)
+	if res.StatusCode == 401 {
+		return nil, sessionExpiredError(respBody)
+	}
 	if res.StatusCode >= 300 {
-		return nil, fmt.Errorf("APIエラー(%d): %s", res.StatusCode, string(respBody))
+		return nil, apiError(res.StatusCode, respBody)
 	}
 	return respBody, nil
 }

@@ -50,6 +50,10 @@ if [ ! -x "$BIN" ]; then
 fi
 ok "インストール先: ${DIM}${BIN}${RESET}"
 
+printf "\n"
+info "Realtime機能(オンライン一覧・対話チャット)を準備中"
+"$BIN" setup || warn "Realtime機能の準備に失敗しました(sca room who/join実行時に再度自動で試みます)"
+
 case ":${PATH}:" in
   *":${GOBIN}:"*) ;;
   *)
@@ -62,7 +66,5 @@ esac
 
 printf "\n%s🎉 sca のインストールが完了しました！%s\n\n" "$BOLD" "$RESET"
 printf "次のステップ:\n"
-printf "  %s1.%s %ssca init%s     設定ファイルの雛形を作成\n" "$BOLD" "$RESET" "$CYAN" "$RESET"
-printf "  %s2.%s %ssca setup%s    Realtime機能(オンライン一覧・対話チャット)を準備\n" "$BOLD" "$RESET" "$CYAN" "$RESET"
-printf "  %s3.%s %ssca login%s    マジックリンクでログイン\n" "$BOLD" "$RESET" "$CYAN" "$RESET"
+printf "  %s1.%s %ssca login%s    ブラウザでログイン\n" "$BOLD" "$RESET" "$CYAN" "$RESET"
 printf "\n%s詳細:%s https://github.com/Lapius7/cli-client_supabase-chat-app\n" "$DIM" "$RESET"

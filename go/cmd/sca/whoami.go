@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -21,12 +20,12 @@ func whoamiUser(cfg Config, session *Session) (string, string, error) {
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return "", "", err
+		return "", "", wrapNetworkError(err)
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 	if res.StatusCode >= 300 {
-		return "", "", fmt.Errorf("セッションが切れています。`sca login`でログインし直してください: %s", string(body))
+		return "", "", sessionExpiredError(body)
 	}
 
 	var u struct {

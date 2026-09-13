@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,7 +13,11 @@ import (
 	"time"
 )
 
-const accountURL = "https://account.lapius7.com"
+const (
+	accountURL = "https://account.lapius7.com"
+	// oauth-connect-token関数(mint)が発行するトークンの有効期限と合わせる。
+	loginTimeout = 5 * time.Minute
+)
 
 // callbackHTML はブラウザに一瞬だけ表示するページ。GoTrueはトークンをURL fragment
 // (#access_token=...)で返すが、fragmentはサーバーに送られてこないため、
@@ -90,23 +96,65 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 	}()
 
 	redirectTo := fmt.Sprintf("http://127.0.0.1:%d/callback", callbackPort)
-	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?redirect_to=" + url.QueryEscape(redirectTo)
+
+	// 転送先(redirect_to)をURLにそのまま出さず、事前にoauth-connect-token関数で
+	// 使い捨てトークンを発行してから開く(見た目・扱いを他のSSO入口と統一するため)。
+	// このmint呼び出しもsca-proxy経由にすることで、CLIはANON_KEYを一切持たずに済む。
+	token, err := mintConnectToken(cfg, redirectTo)
+	if err != nil {
+		return nil, fmt.Errorf("ログインURLの発行に失敗しました: %w", err)
+	}
+	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?token=" + url.QueryEscape(token)
 
 	fmt.Printf("%s ブラウザでログインページを開きます:\n  %s\n", cyan("→"), authURL)
 	if err := openBrowser(authURL); err != nil {
 		warn("ブラウザを自動で開けませんでした。上記URLを手動で開いてください。")
 	}
 
-	// URLに有効期限付きトークンを乗せているわけではなく、ユーザーがブラウザで実際に
-	// 操作を終えるまで待つだけなので、タイムアウトは設けない(Ctrl+Cでいつでも中断できる)。
-	res := <-resultCh
-	if res.Error != "" || res.AccessToken == "" || res.RefreshToken == "" {
-		return nil, fmt.Errorf("ログインに失敗しました(トークンを受信できませんでした)")
+	select {
+	case res := <-resultCh:
+		if res.Error != "" || res.AccessToken == "" || res.RefreshToken == "" {
+			return nil, fmt.Errorf("ログインに失敗しました(トークンを受信できませんでした)")
+		}
+		email := fetchEmail(cfg, res.AccessToken)
+		session := Session{AccessToken: res.AccessToken, RefreshToken: res.RefreshToken, Email: email}
+		if err := saveSession(session); err != nil {
+			return nil, err
+		}
+		return &session, nil
+	case <-time.After(loginTimeout):
+		return nil, fmt.Errorf("タイムアウトしました(%s以内にブラウザでのログインが完了しませんでした。ログインURLの有効期限が切れています。もう一度 `sca login` からやり直してください)", loginTimeout)
 	}
-	email := fetchEmail(cfg, res.AccessToken)
-	session := Session{AccessToken: res.AccessToken, RefreshToken: res.RefreshToken, Email: email}
-	if err := saveSession(session); err != nil {
-		return nil, err
+}
+
+// mintConnectToken はoauth-connect-token関数(action=mint)を呼び、redirect_toに
+// 対応する使い捨てトークンを取得する。sca-proxy経由で呼ぶため、CLI自身はANON_KEYを
+// 一切送らなくてよい(プロキシがapikeyを付与する)。
+func mintConnectToken(cfg Config, redirectTo string) (string, error) {
+	base := strings.TrimRight(cfg.SupabaseURL, "/")
+	body, _ := json.Marshal(map[string]string{"action": "mint", "redirect_to": redirectTo})
+
+	req, err := http.NewRequest(http.MethodPost, base+"/functions/v1/oauth-connect-token", bytes.NewReader(body))
+	if err != nil {
+		return "", err
 	}
-	return &session, nil
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", wrapNetworkError(err)
+	}
+	defer res.Body.Close()
+	respBody, _ := io.ReadAll(res.Body)
+	if res.StatusCode >= 300 {
+		return "", apiError(res.StatusCode, respBody)
+	}
+
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(respBody, &out); err != nil || out.Token == "" {
+		return "", fmt.Errorf("レスポンスの解析に失敗しました: %s", string(respBody))
+	}
+	return out.Token, nil
 }

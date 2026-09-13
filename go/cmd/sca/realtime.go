@@ -120,63 +120,64 @@ func fetchPythonFromGitHub(targetDir string) error {
 	return nil
 }
 
-// cmdSetup はRealtime機能に必要なPythonヘルパー(未取得ならGitHubから取得)とvenvを用意する。
-func cmdSetup() {
-	cfg := loadConfig()
+// ensurePythonReady はRealtime機能に必要なPythonヘルパー(未取得ならGitHubから取得)と
+// venvを、無ければ用意する。既に用意済みなら何も表示せず即座に戻る。
+// `sca room who`/`sca room join`実行時に自動で呼ばれるほか、install.shからも
+// インストール直後に呼ばれる(ユーザーが別コマンドを意識する必要をなくすため)。
+func ensurePythonReady(cfg Config) error {
 	dir := pythonDir(cfg)
+	venvDir := filepath.Join(dir, ".venv")
+	pipPath := filepath.Join(venvDir, "bin", "pip")
+
 	needFetch := false
 	if _, err := os.Stat(filepath.Join(dir, "requirements.txt")); err != nil {
 		needFetch = true
 	}
-
-	total := 2
-	if needFetch {
-		total = 3
+	needVenv := false
+	if _, err := os.Stat(pipPath); err != nil {
+		needVenv = true
 	}
-	n := 0
-	nextStep := func(label string) {
-		n++
-		fmt.Printf("%s %s\n", bold(fmt.Sprintf("[%d/%d]", n, total)), label)
+	if !needFetch && !needVenv {
+		return nil
 	}
 
-	fmt.Printf("%s Realtime機能のセットアップを開始します\n\n", bold("sca setup"))
+	fmt.Printf("%s Realtime機能を初回セットアップ中です %s\n\n", cyan("→"), dim("(次回以降は不要です)"))
 
 	if needFetch {
-		nextStep(fmt.Sprintf("Pythonヘルパーを取得 %s", dim("(初回のみ)")))
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			fail(err)
+			return err
 		}
 		if err := fetchPythonFromGitHub(dir); err != nil {
-			fail(fmt.Errorf("取得に失敗しました: %w", err))
+			return fmt.Errorf("Pythonヘルパーの取得に失敗しました: %w", err)
 		}
 	}
 
-	venvDir := filepath.Join(dir, ".venv")
-	nextStep("Python仮想環境を作成")
-	sp := newSpinner("venvを作成中")
+	sp := newSpinner("Python仮想環境を作成中")
 	sp.start()
 	if err := exec.Command("python3", "-m", "venv", venvDir).Run(); err != nil {
 		sp.stop("")
-		fail(fmt.Errorf("venvの作成に失敗しました: %w", err))
+		return fmt.Errorf("venvの作成に失敗しました(python3コマンドが必要です): %w", err)
 	}
 	sp.stop(fmt.Sprintf("venvを作成 %s", dim(venvDir)))
 
-	nextStep("依存パッケージをインストール")
-	pipCmd := exec.Command(filepath.Join(venvDir, "bin", "pip"), "install", "-r", filepath.Join(dir, "requirements.txt"))
+	pipCmd := exec.Command(pipPath, "install", "-r", filepath.Join(dir, "requirements.txt"))
 	pipCmd.Stdout = os.Stdout
 	pipCmd.Stderr = os.Stderr
 	if err := pipCmd.Run(); err != nil {
-		fail(fmt.Errorf("pip installに失敗しました: %w", err))
+		return fmt.Errorf("pip installに失敗しました: %w", err)
 	}
 
 	fmt.Println()
-	success("セットアップ完了！")
-	fmt.Printf("  %s %s / %s が使えるようになりました。\n", cyan("→"), bold("sca room who"), bold("sca room join"))
+	success("Realtime機能のセットアップ完了")
+	return nil
 }
 
 // execRealtimeHelper はPythonヘルパー(sca_realtime)をサブプロセスとして起動し、
 // 標準入出力をそのまま引き継ぐ(joinは対話セッションのため必須)。
 func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
+	if err := ensurePythonReady(cfg); err != nil {
+		return err
+	}
 	dir := pythonDir(cfg)
 	interpreter := pythonInterpreter(dir)
 
@@ -186,12 +187,5 @@ func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		if _, statErr := os.Stat(interpreter); statErr != nil {
-			return fmt.Errorf("Python環境が見つかりません。先に `sca setup` を実行してください: %w", err)
-		}
-		return err
-	}
-	return nil
+	return cmd.Run()
 }
