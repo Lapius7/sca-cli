@@ -11,10 +11,7 @@ import (
 	"time"
 )
 
-const (
-	accountURL   = "https://account.lapius7.com"
-	callbackPort = 8765
-)
+const accountURL = "https://account.lapius7.com"
 
 // callbackHTML はブラウザに一瞬だけ表示するページ。GoTrueはトークンをURL fragment
 // (#access_token=...)で返すが、fragmentはサーバーに送られてこないため、
@@ -76,11 +73,14 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 		}
 	})
 
-	addr := fmt.Sprintf("127.0.0.1:%d", callbackPort)
-	listener, err := net.Listen("tcp", addr)
+	// ポート0でOSに空いているポートを選ばせる。固定ポートだと第三者が事前に同じ
+	// ポートを乗っ取ってフィッシングできてしまう(このCLIはOSSでポート番号も公開
+	// されているため)ので、毎回ランダムなポートを使うことでそれを防ぐ。
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, fmt.Errorf("ローカルサーバーの起動に失敗しました(ポート%dが使用中かもしれません): %w", callbackPort, err)
+		return nil, fmt.Errorf("ローカルサーバーの起動に失敗しました: %w", err)
 	}
+	callbackPort := listener.Addr().(*net.TCPAddr).Port
 	srv := &http.Server{Handler: mux}
 	go func() { _ = srv.Serve(listener) }()
 	defer func() {
