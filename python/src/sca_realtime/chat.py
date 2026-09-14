@@ -74,6 +74,7 @@ class ChatSession:
         self.sync_client = sync_client
         self.profile_cache = make_cache()
         self.online_ids: set = set()
+        self.prompt = f"{room['name']} > "
         # 送信直後に自分のuser_idでechoされてくるメッセージを二重表示しないための
         # 送信済みキュー(内容ベース、FIFO)。ただしuser_idだけでは同じアカウントで
         # 別クライアント(ブラウザ等)から送られたメッセージまで無条件に握り潰して
@@ -117,7 +118,7 @@ class ChatSession:
             if record.get("sender_id") == self.user_id and self._consume_own(record.get("content", "")):
                 return  # このCLIセッション自身が送った発言のecho(二重表示防止)
             name = get_display_name(self.sync_client, record["sender_id"], self.profile_cache)
-            print(f"\n[{name}] {record.get('content', '')}\n> ", end="", flush=True)
+            print(f"\n[{name}] {record.get('content', '')}\n{self.prompt}", end="", flush=True)
 
         def on_sync() -> None:
             new_ids = set(self._channel.presence_state().keys())
@@ -125,12 +126,12 @@ class ChatSession:
                 if uid == self.user_id:
                     continue
                 name = get_display_name(self.sync_client, uid, self.profile_cache)
-                print(f"\n* {name} さんが入室しました\n> ", end="", flush=True)
+                print(f"\n* {name} さんが入室しました\n{self.prompt}", end="", flush=True)
             for uid in self.online_ids - new_ids:
                 if uid == self.user_id:
                     continue
                 name = get_display_name(self.sync_client, uid, self.profile_cache)
-                print(f"\n* {name} さんが退室しました\n> ", end="", flush=True)
+                print(f"\n* {name} さんが退室しました\n{self.prompt}", end="", flush=True)
             self.online_ids = new_ids
 
         self._channel.on_postgres_changes(
@@ -209,7 +210,7 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
     try:
         while True:
             try:
-                line = input("> ")
+                line = input(chat.prompt)
             except (EOFError, KeyboardInterrupt):
                 print()
                 break
