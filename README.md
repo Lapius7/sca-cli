@@ -83,16 +83,20 @@ URLに直接出ず、5分で失効する使い捨てトークンの向こう側�
 ## 使い方
 
 ```bash
-sca whoami                          # ログイン中のユーザーを表示
-sca room list                       # ルーム一覧
-sca room create "雑談部屋"           # ルーム作成(作成後そのまま入室する)
-sca room rename 雑談部屋 "雑談部屋2"  # リネーム(自分が作成したルームのみ)
-sca room delete 雑談部屋2            # 削除(自分が作成したルームのみ、確認あり)
-sca room who 雑談部屋2               # 今そのルームにいる人を表示
-sca room join 雑談部屋2               # 入室して対話チャット開始
+sca whoami                                          # ログイン中のユーザーを表示
+sca room list                                       # 自分が作成したルームの一覧(IDも表示される)
+sca room create "雑談部屋"                           # ルーム作成(作成後そのまま入室する)
+sca room rename 5f2e...-uuid "雑談部屋2"             # リネーム(自分が作成したルームのみ)
+sca room delete 5f2e...-uuid                        # 削除(自分が作成したルームのみ、確認あり)
+sca room who 5f2e...-uuid                           # 今そのルームにいる人を表示
+sca room join 5f2e...-uuid                          # 入室して対話チャット開始
 ```
 
-`<room_id_or_name>`にはルームIDでも名前でも指定できる(同名ルームが複数ある場合はIDでの指定を求められる)。
+`<room_id>`は**ルームIDのみ**指定できる(名前では入室できない)。`chat_rooms`は全認証済み
+ユーザーがSELECT可能なRLSのため、名前検索を許すと他人のルーム名を適当に打っただけで
+存在確認やIDの割り出し・入室ができてしまう問題があった。そのため`sca room list`は
+自分が作成したルームだけを表示し、他人のルームへは作成者から`/invite`で渡されたIDで
+のみ参加できるようにしている。
 
 `sca room join`の対話セッション中は:
 - 何か入力してEnterでメッセージ送信
