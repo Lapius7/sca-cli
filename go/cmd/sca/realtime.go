@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -222,5 +223,17 @@ func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
+	// GoとPythonの子プロセスは同じフォアグラウンドプロセスグループにいるため、
+	// ユーザーがCtrl+C(SIGINT)を押すと両方に同時に届く。Go側のデフォルト挙動
+	// (即終了)のままだと、Python側が退室処理(Realtime切断・非同期タスクの
+	// キャンセル)を終える前にGoプロセスだけ先に終了し、シェルのプロンプトが
+	// 戻った後にPython側の出力が遅れて表示される、という見た目になっていた。
+	// signal.Notifyで受信をこちらに引き取り、Pythonの終了(cmd.Run()の完了)
+	// までGo側は生き続けるようにする。
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	defer signal.Stop(sigCh)
+
 	return cmd.Run()
 }
