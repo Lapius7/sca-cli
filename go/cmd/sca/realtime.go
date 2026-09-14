@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -196,12 +197,20 @@ func ensurePythonReady(cfg Config) error {
 	}
 	sp.stop(fmt.Sprintf("venvを作成 %s", dim(venvDir)))
 
-	pipCmd := exec.Command(pipPath, "install", "-r", filepath.Join(dir, "requirements.txt"))
-	pipCmd.Stdout = os.Stdout
-	pipCmd.Stderr = os.Stderr
+	sp = newSpinner("依存パッケージをインストール中")
+	sp.start()
+	var pipOut bytes.Buffer
+	pipCmd := exec.Command(pipPath, "install", "-q", "-r", filepath.Join(dir, "requirements.txt"))
+	pipCmd.Stdout = &pipOut
+	pipCmd.Stderr = &pipOut
 	if err := pipCmd.Run(); err != nil {
+		sp.stop("")
+		// 失敗時だけpipの生ログを出す(成功時にCollecting/Using cached...の
+		// 大量のログをそのまま流すと、何が起きているか分かりにくいため)
+		fmt.Fprintln(os.Stderr, pipOut.String())
 		return fmt.Errorf("pip installに失敗しました: %w", err)
 	}
+	sp.stop("依存パッケージをインストール")
 
 	fmt.Println()
 	success("Realtime機能のセットアップ完了")
