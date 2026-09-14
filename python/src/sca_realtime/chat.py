@@ -154,7 +154,10 @@ class ChatSession:
 
 def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: str) -> None:
     print(f"=== {room['name']} に入室しました ===")
-    print("メッセージを入力してEnterで送信。 /who でオンライン一覧、 /quit または Ctrl+C で退室。")
+    print(
+        "メッセージを入力してEnterで送信。"
+        " /who でオンライン一覧、 /invite で招待方法、 /quit またはCtrl+C で退室。"
+    )
 
     chat = ChatSession(cfg, session, room, user_id, sync_client)
     chat.start()
@@ -179,6 +182,12 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 else:
                     names = [get_display_name(sync_client, uid, chat.profile_cache) for uid in online]
                     print("オンライン: " + ", ".join(names))
+                continue
+
+            if line == "/invite":
+                invite_url = f"https://sandbox.lapius7.com/supabase-chat-app/{room['id']}"
+                print(f"CLIから:     sca room join {room['name']}")
+                print(f"ブラウザから: {invite_url}")
                 continue
 
             rooms.send_message(sync_client, room["id"], user_id, line)

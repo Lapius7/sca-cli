@@ -48,9 +48,9 @@ func printUsage() {
 		{"sca whoami", "ログイン中のユーザーを表示する"},
 		{"sca room list", "ルーム一覧を表示する"},
 		{"sca room create <name>", "ルームを作成する"},
-		{"sca room rename <room> <new_name>", "ルーム名を変更する(作成者のみ)"},
-		{"sca room who <room>", "ルームに今いる人を表示する"},
-		{"sca room join <room>", "ルームに入って対話チャットを開始する"},
+		{"sca room rename <room_id_or_name> <new_name>", "ルーム名を変更する(作成者のみ)"},
+		{"sca room who <room_id_or_name>", "ルームに今いる人を表示する"},
+		{"sca room join <room_id_or_name>", "ルームに入って対話チャットを開始する"},
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	for _, r := range rows {
@@ -58,7 +58,7 @@ func printUsage() {
 	}
 	w.Flush()
 	fmt.Println()
-	fmt.Println(dim("<room> はルームIDまたは名前のどちらでも指定できます。"))
+	fmt.Println(dim("<room_id_or_name> にはルームIDまたは名前のどちらでも指定できます。"))
 }
 
 func requireSession() (Config, *Session) {
@@ -153,10 +153,14 @@ func cmdRoom(args []string) {
 			fail(err)
 		}
 		success("作成しました %s %s", bold(room.Name), dim(room.ID))
+		// 作成したら普通そのまま使いたいはずなので、そのまま入室する
+		if err := execRealtimeHelper(cfg, "join", room.ID, room.Name); err != nil {
+			fail(err)
+		}
 
 	case "rename":
 		if len(args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: sca room rename <room> <new_name>")
+			fmt.Fprintln(os.Stderr, "usage: sca room rename <room_id_or_name> <new_name>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
@@ -171,7 +175,7 @@ func cmdRoom(args []string) {
 
 	case "who":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: sca room who <room>")
+			fmt.Fprintln(os.Stderr, "usage: sca room who <room_id_or_name>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
@@ -184,7 +188,7 @@ func cmdRoom(args []string) {
 
 	case "join":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: sca room join <room>")
+			fmt.Fprintln(os.Stderr, "usage: sca room join <room_id_or_name>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
