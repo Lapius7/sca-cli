@@ -12,20 +12,47 @@ import (
 // schemaを指定すると Accept-Profile/Content-Profile ヘッダーでスキーマを切り替える
 // (supabase-pyの`.schema("chat")`と同じ役割)。
 func restRequest(cfg Config, session *Session, method, path, schema string, body interface{}) ([]byte, error) {
+	respBody, status, err := doRestRequest(cfg, session, method, path, schema, body)
+	if err != nil {
+		return nil, err
+	}
+	if status == 401 {
+		// アクセストークンが期限切れ(GoTrueのJWT_EXPIRY、現在1時間)なだけの可能性が高いので、
+		// 保存済みのRefreshTokenでの更新を1回だけ試してから同じリクエストをやり直す。
+		// 以前はここで即座に「`sca login`でやり直せ」と案内していたため、1時間おきに
+		// 強制再ログインになっていた(実際に指摘されたバグ)。
+		if refreshErr := refreshAccessToken(cfg, session); refreshErr != nil {
+			return nil, refreshErr
+		}
+		respBody, status, err = doRestRequest(cfg, session, method, path, schema, body)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if status == 401 {
+		return nil, sessionExpiredError(respBody)
+	}
+	if status >= 300 {
+		return nil, apiError(status, respBody)
+	}
+	return respBody, nil
+}
+
+func doRestRequest(cfg Config, session *Session, method, path, schema string, body interface{}) ([]byte, int, error) {
 	base := strings.TrimRight(cfg.SupabaseURL, "/")
 
 	var reader io.Reader
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		reader = bytes.NewReader(b)
 	}
 
 	req, err := http.NewRequest(method, base+path, reader)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("apikey", cfg.AnonKey)
 	req.Header.Set("Authorization", "Bearer "+session.AccessToken)
@@ -40,15 +67,9 @@ func restRequest(cfg Config, session *Session, method, path, schema string, body
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, wrapNetworkError(err)
+		return nil, 0, wrapNetworkError(err)
 	}
 	defer res.Body.Close()
 	respBody, _ := io.ReadAll(res.Body)
-	if res.StatusCode == 401 {
-		return nil, sessionExpiredError(respBody)
-	}
-	if res.StatusCode >= 300 {
-		return nil, apiError(res.StatusCode, respBody)
-	}
-	return respBody, nil
+	return respBody, res.StatusCode, nil
 }

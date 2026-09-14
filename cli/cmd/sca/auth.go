@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -40,6 +42,48 @@ func loadSession() (*Session, error) {
 
 func doLogout() {
 	_ = os.Remove(sessionFilePath())
+}
+
+// refreshAccessToken はRefreshTokenを使ってアクセストークンを更新し、session(呼び出し元が
+// 持っているポインタ)とsession.jsonの両方を新しい値で上書きする。
+// アクセストークンはGoTrueのJWT_EXPIRY(現在1時間)で失効するが、これまでこのCLIは
+// 401を受け取ると即座に「`sca login`でやり直せ」と案内するだけで、せっかく保存してある
+// RefreshTokenを一切使っていなかった(実際に指摘されたバグ)。restRequest/whoamiUserは
+// 401を見たらまずこれを試してから、ダメだった場合だけセッション切れ扱いにする。
+func refreshAccessToken(cfg Config, session *Session) error {
+	base := strings.TrimRight(cfg.SupabaseURL, "/")
+	reqBody, _ := json.Marshal(map[string]string{"refresh_token": session.RefreshToken})
+
+	req, err := http.NewRequest(http.MethodPost, base+"/auth/v1/token?grant_type=refresh_token", bytes.NewReader(reqBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("apikey", cfg.AnonKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return wrapNetworkError(err)
+	}
+	defer res.Body.Close()
+	respBody, _ := io.ReadAll(res.Body)
+	if res.StatusCode >= 300 {
+		// RefreshToken自体も失効/失われている場合はここに来る。この場合だけは
+		// 本当に再ログインするしかない
+		return sessionExpiredError(respBody)
+	}
+
+	var out struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.Unmarshal(respBody, &out); err != nil || out.AccessToken == "" || out.RefreshToken == "" {
+		return fmt.Errorf("トークン更新レスポンスの解析に失敗しました: %s", string(respBody))
+	}
+
+	session.AccessToken = out.AccessToken
+	session.RefreshToken = out.RefreshToken
+	return saveSession(*session)
 }
 
 // fetchEmail は取得したアクセストークンでGoTrueに問い合わせ、ユーザーのメールアドレスを取る
