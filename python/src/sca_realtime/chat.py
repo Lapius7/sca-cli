@@ -209,8 +209,10 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 continue
 
             if line == "/invite":
+                # ルーム名では入室できない(名前を知られただけで他人のルームに
+                # 入られてしまわないよう、joinはIDのみ受け付ける仕様のため)
                 invite_url = f"https://sandbox.lapius7.com/supabase-chat-app/{room['id']}"
-                print(f"CLIから:     sca room join {room['name']}")
+                print(f"CLIから:     sca room join {room['id']}")
                 print(f"ブラウザから: {invite_url}")
                 continue
 

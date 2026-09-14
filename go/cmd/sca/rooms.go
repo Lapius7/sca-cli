@@ -20,8 +20,13 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 
 func isUUID(s string) bool { return uuidPattern.MatchString(s) }
 
-func listRooms(cfg Config, session *Session) ([]Room, error) {
-	data, err := restRequest(cfg, session, http.MethodGet, "/rest/v1/chat_rooms?select=*&order=created_at.desc", "chat", nil)
+// listRooms は自分が作成したルームだけを返す。chat_rooms は全認証済みユーザーが
+SELECT可能なRLSのため、絞り込み無しで一覧すると他人が作ったルームの存在・名前・IDまで
+見えてしまう(名前を知られただけで入室されるリスクにつながる)。一覧はあくまで
+「自分のルームの管理画面」とし、他人のルームへは`/invite`で渡されたIDでのみ入れるようにする。
+func listRooms(cfg Config, session *Session, ownerID string) ([]Room, error) {
+	path := fmt.Sprintf("/rest/v1/chat_rooms?select=*&created_by=eq.%s&order=created_at.desc", url.QueryEscape(ownerID))
+	data, err := restRequest(cfg, session, http.MethodGet, path, "chat", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -71,15 +76,17 @@ func renameRoom(cfg Config, session *Session, roomID, newName string) (*Room, er
 	return &rooms[0], nil
 }
 
-// resolveRoom はUUIDならそのままIDとして、そうでなければ名前で検索して1件に絞り込む。
+// resolveRoom はルームIDでのみ解決する。以前は名前でも検索できたが、chat_rooms は
+// 全認証済みユーザーがSELECT可能なRLSのため、名前検索を許すと他人のルーム名を
+// 適当に打っただけで存在確認・IDの割り出し・入室ができてしまう問題があった。
+// 自分のルームは`sca room list`(自分の作成分のみ)、他人のルームは`/invite`で
+// 渡されたIDでのみ参照できるようにし、ID以外の入力は明確にエラーにする。
 func resolveRoom(cfg Config, session *Session, ref string) (*Room, error) {
-	var path string
-	if isUUID(ref) {
-		path = fmt.Sprintf("/rest/v1/chat_rooms?id=eq.%s&select=*", url.QueryEscape(ref))
-	} else {
-		path = fmt.Sprintf("/rest/v1/chat_rooms?name=eq.%s&select=*", url.QueryEscape(ref))
+	if !isUUID(ref) {
+		return nil, fmt.Errorf("ルームIDを指定してください(名前では入室できません): %q\n`sca room list`(自分のルーム)または招待されたIDを確認してください", ref)
 	}
 
+	path := fmt.Sprintf("/rest/v1/chat_rooms?id=eq.%s&select=*", url.QueryEscape(ref))
 	data, err := restRequest(cfg, session, http.MethodGet, path, "chat", nil)
 	if err != nil {
 		return nil, err
@@ -90,13 +97,6 @@ func resolveRoom(cfg Config, session *Session, ref string) (*Room, error) {
 	}
 	if len(rooms) == 0 {
 		return nil, fmt.Errorf("ルームが見つかりません: %s", ref)
-	}
-	if len(rooms) > 1 {
-		msg := "同じ名前のルームが複数あります。IDで指定してください:\n"
-		for _, r := range rooms {
-			msg += fmt.Sprintf("  %s  %s\n", r.ID, r.Name)
-		}
-		return nil, errors.New(msg)
 	}
 	return &rooms[0], nil
 }

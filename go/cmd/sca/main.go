@@ -46,12 +46,12 @@ func printUsage() {
 		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
 		{"sca whoami", "ログイン中のユーザーを表示する"},
-		{"sca room list", "ルーム一覧を表示する"},
+		{"sca room list", "自分が作成したルームの一覧を表示する"},
 		{"sca room create <name>", "ルームを作成する"},
-		{"sca room rename <room_id_or_name> <new_name>", "ルーム名を変更する(作成者のみ)"},
-		{"sca room delete <room_id_or_name>", "ルームを削除する(作成者のみ、確認あり)"},
-		{"sca room who <room_id_or_name>", "ルームに今いる人を表示する"},
-		{"sca room join <room_id_or_name>", "ルームに入って対話チャットを開始する"},
+		{"sca room rename <room_id> <new_name>", "ルーム名を変更する(作成者のみ)"},
+		{"sca room delete <room_id>", "ルームを削除する(作成者のみ、確認あり)"},
+		{"sca room who <room_id>", "ルームに今いる人を表示する"},
+		{"sca room join <room_id>", "ルームに入って対話チャットを開始する"},
 	}
 	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	for _, r := range rows {
@@ -59,7 +59,8 @@ func printUsage() {
 	}
 	w.Flush()
 	fmt.Println()
-	fmt.Println(dim("<room_id_or_name> にはルームIDまたは名前のどちらでも指定できます。"))
+	fmt.Println(dim("<room_id> はルームIDのみ指定可能です(名前では入室できません)。"))
+	fmt.Println(dim("自分のルームは `sca room list`、他人のルームは /invite で渡されたIDを使ってください。"))
 }
 
 func requireSession() (Config, *Session) {
@@ -120,23 +121,22 @@ func cmdRoom(args []string) {
 
 	switch args[0] {
 	case "list":
-		roomList, err := listRooms(cfg, session)
+		userID, err := whoamiUser(cfg, session)
+		if err != nil {
+			fail(err)
+		}
+		roomList, err := listRooms(cfg, session, userID)
 		if err != nil {
 			fail(err)
 		}
 		if len(roomList) == 0 {
-			fmt.Println("ルームがありません。`sca room create <name>` で作成できます。")
+			fmt.Println("作成したルームがありません。`sca room create <name>` で作成できます。")
 			return
 		}
-		cache := map[string]string{}
 		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", bold("NAME"), bold("ID"), bold("CREATED BY"), bold("CREATED AT"))
+		fmt.Fprintf(w, "%s\t%s\t%s\n", bold("NAME"), bold("ID"), bold("CREATED AT"))
 		for _, r := range roomList {
-			creator := "?"
-			if r.CreatedBy != nil {
-				creator = getDisplayName(cfg, session, *r.CreatedBy, cache)
-			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", bold(r.Name), dim(r.ID), creator, dim(formatDate(r.CreatedAt)))
+			fmt.Fprintf(w, "%s\t%s\t%s\n", bold(r.Name), dim(r.ID), dim(formatDate(r.CreatedAt)))
 		}
 		w.Flush()
 
@@ -161,7 +161,7 @@ func cmdRoom(args []string) {
 
 	case "rename":
 		if len(args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: sca room rename <room_id_or_name> <new_name>")
+			fmt.Fprintln(os.Stderr, "usage: sca room rename <room_id> <new_name>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
@@ -176,7 +176,7 @@ func cmdRoom(args []string) {
 
 	case "delete":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: sca room delete <room_id_or_name>")
+			fmt.Fprintln(os.Stderr, "usage: sca room delete <room_id>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
@@ -194,7 +194,7 @@ func cmdRoom(args []string) {
 
 	case "who":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: sca room who <room_id_or_name>")
+			fmt.Fprintln(os.Stderr, "usage: sca room who <room_id>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
@@ -207,7 +207,7 @@ func cmdRoom(args []string) {
 
 	case "join":
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "usage: sca room join <room_id_or_name>")
+			fmt.Fprintln(os.Stderr, "usage: sca room join <room_id>")
 			os.Exit(2)
 		}
 		room, err := resolveRoom(cfg, session, args[1])
