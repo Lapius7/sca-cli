@@ -9,7 +9,7 @@
 set -euo pipefail
 
 REPO="github.com/lapius7/sca-cli"
-PKG="${REPO}/go/cmd/sca"
+PKG="${REPO}/cli/cmd/sca"
 
 if [ -t 1 ]; then
   BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
