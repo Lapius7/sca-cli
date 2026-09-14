@@ -1,11 +1,11 @@
 # Go
-go/sca
-go/*.exe
+cli/sca
+cli/*.exe
 
 # Python
-python/.venv/
-python/**/__pycache__/
-python/**/*.egg-info/
+realtime/.venv/
+realtime/**/__pycache__/
+realtime/**/*.egg-info/
 
 # ローカル設定(実際のキーが入るため)
 .config/

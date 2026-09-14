@@ -15,6 +15,11 @@ func main() {
 
 	switch os.Args[1] {
 	case "setup":
+		// 通常は`sca room who`/`sca room join`実行時に自動で行われるので
+		// 隠しコマンド扱い(printUsageには出さない)。手動での再実行・トラブル時用。
+		// didWorkがfalse(既に準備済み)の場合だけこちらでメッセージを出す。
+		// trueの場合はensurePythonReady自身が完了メッセージを出し終えているので、
+		// ここで重ねて表示すると同じ内容が二重に出てしまう。
 		didWork, err := ensurePythonReady(loadConfig())
 		if err != nil {
 			fail(err)
@@ -45,6 +50,7 @@ func printUsage() {
 	fmt.Println(bold("Usage:"))
 	rows := [][2]string{
 		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
+		{"sca login --device", "デバイスコード方式でログインする(SSH越し等、ローカルにブラウザが無い場合)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
 		{"sca whoami", "ログイン中のユーザーを表示する"},
 		{"sca room list", "自分が作成したルームの一覧を表示する"},
@@ -60,7 +66,7 @@ func printUsage() {
 	}
 	w.Flush()
 	fmt.Println()
-	fmt.Println(dim("<room_id> にはルームIDのみ指定可能です(名前では入室できません)。"))
+	fmt.Println(dim("<room_id> はルームIDのみ指定可能です(名前では入室できません)。"))
 	fmt.Println(dim("自分のルームは `sca room list`、他人のルームは /invite で渡されたIDを使ってください。"))
 }
 
@@ -82,7 +88,21 @@ func formatDate(iso string) string {
 
 func cmdLogin(args []string) {
 	cfg := loadConfig()
-	session, err := loginViaBrowser(cfg)
+
+	useDevice := false
+	for _, a := range args {
+		if a == "--device" {
+			useDevice = true
+		}
+	}
+
+	var session *Session
+	var err error
+	if useDevice {
+		session, err = loginViaDeviceCode(cfg)
+	} else {
+		session, err = loginViaBrowser(cfg)
+	}
 	if err != nil {
 		fail(err)
 	}
@@ -155,6 +175,7 @@ func cmdRoom(args []string) {
 			fail(err)
 		}
 		success("作成しました %s %s", bold(room.Name), dim(room.ID))
+		// 作成したら普通そのまま使いたいはずなので、そのまま入室する
 		if err := execRealtimeHelper(cfg, "join", room.ID, room.Name); err != nil {
 			fail(err)
 		}

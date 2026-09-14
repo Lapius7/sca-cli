@@ -7,9 +7,11 @@ import (
 	"time"
 )
 
+// spinner はインストーラー風の簡易プログレス表示。TTYでなければ静的な1行だけ出す
+// (パイプ/リダイレクト時にちらつく制御文字が出力に混ざらないようにするため)。
 type spinner struct {
 	label  string
-	suffix func() string
+	suffix func() string // 毎tickで呼ばれ、末尾に追記する文字列を返す(バイト数表示など、無ければnil)
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 }
@@ -49,6 +51,7 @@ func (s *spinner) start() {
 	}()
 }
 
+// stop はスピナーを止め、finalMsgがあれば緑チェック付きの確定行に置き換える。
 func (s *spinner) stop(finalMsg string) {
 	if !colorEnabled {
 		if finalMsg != "" {
@@ -64,6 +67,7 @@ func (s *spinner) stop(finalMsg string) {
 	}
 }
 
+// countingReader はRead()経由で通過したバイト数を計測するラッパー(ダウンロード進捗表示用)。
 type countingReader struct {
 	r     interface{ Read([]byte) (int, error) }
 	total int64

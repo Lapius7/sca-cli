@@ -20,6 +20,10 @@ const (
 	githubRef  = "main"
 )
 
+// pythonDir はRealtime(Presence/購読)を担当するPythonヘルパーの置き場所。
+// config.envの PYTHON_DIR で明示されていればそれを使い、無ければ
+// ユーザーのローカルキャッシュ(~/.local/share/sca/python)を既定値にする
+// (go installでバイナリだけ配布された場合、リポジトリのクローンが手元に無いため)。
 func pythonDir(cfg Config) string {
 	if cfg.PythonDir != "" {
 		return cfg.PythonDir
@@ -33,11 +37,13 @@ func pythonInterpreter(dir string) string {
 	if _, err := os.Stat(venvPython); err == nil {
 		return venvPython
 	}
-	return "python3"
+	return "python3" // venv未セットアップ時のフォールバック(依存パッケージが入っていれば動く)
 }
 
 // fetchPythonFromGitHub はGitHubのtarball(codeload)からリポジトリ全体を取得し、
 // その中の`realtime/`サブディレクトリだけをtargetDirに展開する。
+// (GitHubは単一サブディレクトリだけのダウンロードURLを提供していないため、
+// 一度全体を取得してフィルタしながら展開する)
 func fetchPythonFromGitHub(targetDir string) error {
 	url := fmt.Sprintf("https://codeload.github.com/%s/tar.gz/refs/heads/%s", githubRepo, githubRef)
 	res, err := http.Get(url)
@@ -62,6 +68,10 @@ func fetchPythonFromGitHub(targetDir string) error {
 	defer gz.Close()
 	tr := tar.NewReader(gz)
 
+	// GitHubのcodeloadタルボールは "<repo>-<ref>/" というディレクトリの下に全ファイルを置く。
+	// 先頭のtarエントリから動的に推測すると、GitHubが差し込む pax_global_header
+	// (typeflag='g'、パスに"/"を含まない特殊エントリ)を誤って掴んでしまうため、
+	// リポジトリ名から直接プレフィックスを組み立てる。
 	repoBase := githubRepo[strings.LastIndex(githubRepo, "/")+1:]
 	prefix := fmt.Sprintf("%s-%s/realtime/", repoBase, githubRef)
 	found := false
@@ -113,6 +123,9 @@ func fetchPythonFromGitHub(targetDir string) error {
 	return nil
 }
 
+// binaryVersion は `go install .../sca@latest` でビルドされた場合に埋め込まれる
+// モジュールバージョン(例: "v0.3.2")を返す。ソースから直接ビルドした場合など
+// バージョン情報が無い場合は空文字列を返す。
 func binaryVersion() string {
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -124,6 +137,19 @@ func binaryVersion() string {
 	return bi.Main.Version
 }
 
+// ensurePythonReady はRealtime機能に必要なPythonヘルパー(未取得ならGitHubから取得)と
+// venvを、無ければ用意する。既に用意済みなら何も表示せず即座に戻る。
+// `sca room who`/`sca room join`実行時に自動で呼ばれるほか、install.shからも
+// インストール直後に呼ばれる(ユーザーが別コマンドを意識する必要をなくすため)。
+//
+// cli/がタグ更新されて`sca`本体だけ新しくなっても、以前は一度取得したPython側を
+// 二度と更新しなかった(requirements.txtの有無しか見ていなかった)ため、新しい
+// Pythonコードの変更(例: /inviteコマンド追加)がキャッシュ済み環境に反映されない
+// 問題があった。ビルドに埋め込まれたモジュールバージョンとキャッシュ側に記録した
+// バージョンを突き合わせ、ズレていたら再取得する。
+// 戻り値のboolは実際にセットアップ作業を行ったかどうか。呼び出し側(`sca setup`)が
+// 「既に準備済みでした」と「今回セットアップしました」を出し分けて、ここで出す
+// スピナー/完了メッセージと重複した文言を表示しないようにするための情報。
 func ensurePythonReady(cfg Config) (bool, error) {
 	dir := pythonDir(cfg)
 	venvDir := filepath.Join(dir, ".venv")
@@ -163,7 +189,7 @@ func ensurePythonReady(cfg Config) (bool, error) {
 		if v := binaryVersion(); v != "" {
 			_ = os.WriteFile(versionFile, []byte(v), 0644)
 		}
-		needVenv = true
+		needVenv = true // ディレクトリごと作り直したのでvenvも作り直す
 	}
 
 	sp := newSpinner("Python仮想環境を作成中")
@@ -182,6 +208,8 @@ func ensurePythonReady(cfg Config) (bool, error) {
 	pipCmd.Stderr = &pipOut
 	if err := pipCmd.Run(); err != nil {
 		sp.stop("")
+		// 失敗時だけpipの生ログを出す(成功時にCollecting/Using cached...の
+		// 大量のログをそのまま流すと、何が起きているか分かりにくいため)
 		fmt.Fprintln(os.Stderr, pipOut.String())
 		return false, fmt.Errorf("pip installに失敗しました: %w", err)
 	}
@@ -192,6 +220,8 @@ func ensurePythonReady(cfg Config) (bool, error) {
 	return true, nil
 }
 
+// execRealtimeHelper はPythonヘルパー(sca_realtime)をサブプロセスとして起動し、
+// 標準入出力をそのまま引き継ぐ(joinは対話セッションのため必須)。
 func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
 	if _, err := ensurePythonReady(cfg); err != nil {
 		return err
@@ -206,6 +236,13 @@ func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
+	// GoとPythonの子プロセスは同じフォアグラウンドプロセスグループにいるため、
+	// ユーザーがCtrl+C(SIGINT)を押すと両方に同時に届く。Go側のデフォルト挙動
+	// (即終了)のままだと、Python側が退室処理(Realtime切断・非同期タスクの
+	// キャンセル)を終える前にGoプロセスだけ先に終了し、シェルのプロンプトが
+	// 戻った後にPython側の出力が遅れて表示される、という見た目になっていた。
+	// signal.Notifyで受信をこちらに引き取り、Pythonの終了(cmd.Run()の完了)
+	// までGo側は生き続けるようにする。
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
 	defer signal.Stop(sigCh)

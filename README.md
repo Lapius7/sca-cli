@@ -34,7 +34,7 @@ CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ
 (実体は`web/sandbox.lapius7.com/supabase-chat-app/proxy/main.go`、REST/Auth/Realtime
 WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与はこのプロキシだけが行うため、
 **CLI(Go/Pythonどちら側にも)はANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される
-前提の非秘匿な値(Web版のJSバンドルにもそのまま入っている)なので厉密には埋め込んでも
+前提の非秘匿な値(Web版のJSバンドルにもそのまま入っている)なので厳密には埋め込んでも
 問題ないが、CLIのソースコードに一切登場しない構成にすることで「念のため」のリスクも
 無くしている。
 
@@ -48,12 +48,12 @@ WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与は�
 `/oauth/authorize`アクセスはsca-proxyを経由せずaccount.lapius7.com/supabase.lapius7.comに
 直接アクセスする。`/oauth/authorize`は一般的なOAuth認可エンドポイントの見た目に合わせた
 専用パスで、`sandbox.lapius7.com/supabase-chat-app`・`post.lapius7.com`・`md.lapius7.com`
-などの既存サービスも同じ入口(と同じトークン発行の仈み)を共有している。実際の転送先URLは
+などの既存サービスも同じ入口(と同じトークン発行の仕組み)を共有している。実際の転送先URLは
 URLに直接出ず、5分で失効する使い捨てトークンの向こう側にある。
 
 ポートを固定(旧実装は`8765`固定)にしなかったのは、固定ポートだと第三者が事前に
 同じポートを乗っ取っておき、フィッシングリンクでログインの確認画面だけ踏ませて
-セッションを奧うことが理論上可能になるため(このCLIはOSSでポート番号も公開されている)。
+セッションを奪うことが理論上可能になるため(このCLIはOSSでポート番号も公開されている)。
 `account.lapius7.com`側は`127.0.0.1`の任意ポートへのハンドオフだけを特例で許可しており
 (`oauth-connect-token`関数・`sso-handoff`関数・`ssoRedirect.ts`)、他ドメインへの緩和は
 一切行っていない。
@@ -89,7 +89,7 @@ sca room join 5f2e...-uuid                          # 入室して対話チャ�
 ## 設計メモ
 
 - `chat`スキーマには「入室中/メンバー」を表す永続テーブルは無い。入退室はRealtime Presenceチャンネル(`room-<roomId>`)への接続/切断だけで表現される、Web版と全く同じ仕組み
-- ルームの削除は作成者のみ可能(`chat.chat_rooms`のRLSに`created_by = auth.uid()`のDELETEポリシーを追加済み)。削除するとメッセージも`ON DELETE CASCADE`で一緒に消える(FK制約側で設定)。CLI(`sca room delete`)・Web版どちらも実行前に確認を挿む。メッセージ自体の編集/削除は引き続き未実装(RLSポリシー未対応)
+- ルームの削除は作成者のみ可能(`chat.chat_rooms`のRLSに`created_by = auth.uid()`のDELETEポリシーを追加済み)。削除するとメッセージも`ON DELETE CASCADE`で一緒に消える(FK制約側で設定)。CLI(`sca room delete`)・Web版どちらも実行前に確認を挟む。メッセージ自体の編集/削除は引き続き未実装(RLSポリシー未対応)
 - `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
 - 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`realtime/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
 - プロキシ本体(`web/sandbox.lapius7.com/supabase-chat-app/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/supabase-chat-app/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダーを必ず上書きする以外は何もしない。**`apikey`のクエリパラメータ付与は`/realtime/v1/websocket`パスだけに限定すること**(PostgRESTは未知のクエリパラメータを列フィルタとして解釈するため、全パスに付与すると認証成功時にPGRST100エラーで壊れる。この不具合は無効なトークンでのテストでは表面化せず、実トークンで初めて発覚した)
@@ -102,5 +102,5 @@ sca room join 5f2e...-uuid                          # 入室して対話チャ�
 
 ## 既知の制約
 
-- Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても１人としてカウントされる(Web版と同じ仕様)
+- Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても1人としてカウントされる(Web版と同じ仕様)
 - `sca login`は`sca`を実行しているマシン自身でブラウザが開ける環境が前提(ローカルPC等)。SSH先のサーバー上でそのまま実行しても、ブラウザが手元のマシンで開いてもコールバックはSSH先に届かない。リモートで使う場合はターミナルに表示されるポート番号を確認して`ssh -L <そのポート>:localhost:<そのポート> ...`のようにポートフォワードすること(ポートは毎回ランダムなので、ログを見てから接続する必要がある)

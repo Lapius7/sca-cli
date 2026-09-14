@@ -47,6 +47,8 @@ async def _who_once_async(cfg: dict, session: dict, room_id: str, timeout: float
     await client.remove_channel(channel)
     await client.realtime.close()
 
+    # ChatSession._async_main と同じ理由(認証タイマー等の裏タスク)で、
+    # asyncio.run()終了時の"Task was destroyed but it is pending!"警告を防ぐ
     pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     for t in pending:
         t.cancel()
@@ -73,6 +75,10 @@ class ChatSession:
         self.profile_cache = make_cache()
         self.online_ids: set = set()
         self.prompt = f"{room['name']} > "
+        # 送信直後に自分のuser_idでechoされてくるメッセージを二重表示しないための
+        # 送信済みキュー(内容ベース、FIFO)。ただしuser_idだけでは同じアカウントで
+        # 別クライアント(ブラウザ等)から送られたメッセージまで無条件に握り潰して
+        # しまうため、「このCLIセッションが実際に送信した分」だけをここで管理する。
         self._pending_own: deque = deque()
         self._pending_own_lock = threading.Lock()
 
@@ -110,7 +116,7 @@ class ChatSession:
             if not record:
                 return
             if record.get("sender_id") == self.user_id and self._consume_own(record.get("content", "")):
-                return
+                return  # このCLIセッション自身が送った発言のecho(二重表示防止)
             name = get_display_name(self.sync_client, record["sender_id"], self.profile_cache)
             print(f"\n[{name}] {record.get('content', '')}\n{self.prompt}", end="", flush=True)
 
@@ -148,6 +154,7 @@ class ChatSession:
 
         await self._channel.subscribe(on_subscribe)
 
+        # stop()が呼ばれるまでこのループを生かしておく(コールバックはこのループ上で動く)
         while not self._stop.is_set():
             await asyncio.sleep(0.2)
 
@@ -155,6 +162,11 @@ class ChatSession:
         await self._client.remove_channel(self._channel)
         await self._client.realtime.close()
 
+        # realtime.close()やauth周りの内部実装が、トークン自動更新タイマーや
+        # push応答待ちのタイムアウトなど、自分では止めない裏タスクを残すことがある。
+        # それらが残ったままイベントループを閉じると"Task was destroyed but it is
+        # pending!"という無害だが紛らわしい警告がstderrに出るため、退室時に
+        # 明示的にキャンセルしてから終了する。
         pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         for t in pending:
             t.cancel()
@@ -170,6 +182,8 @@ class ChatSession:
             self._pending_own.append(content)
 
     def _consume_own(self, content: str) -> bool:
+        """echoされてきた内容が自分の送信キューにあれば消費してTrueを返す。
+        無ければ(=同じアカウントの別クライアントからの送信)Falseを返す。"""
         with self._pending_own_lock:
             try:
                 self._pending_own.remove(content)
@@ -216,12 +230,17 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 continue
 
             if line == "/invite":
+                # ルーム名では入室できない(名前を知られただけで他人のルームに
+                # 入られてしまわないよう、joinはIDのみ受け付ける仕様のため)
                 invite_url = f"https://sandbox.lapius7.com/supabase-chat-app/{room['id']}"
                 print(f"CLIから:     sca room join {room['id']}")
                 print(f"ブラウザから: {invite_url}")
                 continue
 
             if line.startswith("/"):
+                # "/"始まりは未知のスラッシュコマンドの可能性が高いので、誤って
+                # そのままメッセージ送信してしまわないようエラー表示だけして送らない
+                # (メッセージ本文として"/"から始めたい場合は稀なので許容している)
                 print(f"不明なコマンドです: {line}(/who, /invite, /quit が使えます)")
                 continue
 

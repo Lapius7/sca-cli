@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+// colorEnabled はNO_COLOR環境変数やTTY判定に基づき、色付き出力を使うかどうかを決める
+// (パイプ/リダイレクト時に生のANSIコードが混ざらないようにするための一般的な作法)。
 var colorEnabled = detectColorSupport()
 
 func detectColorSupport() bool {
@@ -64,6 +66,8 @@ func fail(err error) {
 	os.Exit(1)
 }
 
+// confirm はy/nの確認プロンプトを表示し、"y"/"yes"(大文字小文字を無視)の場合のみtrueを返す。
+// 破壊的な操作(ルーム削除等)の前に必ず挟む。
 func confirm(format string, args ...interface{}) bool {
 	fmt.Printf("%s %s %s", yellow("?"), fmt.Sprintf(format, args...), dim("[y/N]: "))
 	reader := bufio.NewReader(os.Stdin)

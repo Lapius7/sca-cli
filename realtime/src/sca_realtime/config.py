@@ -21,6 +21,9 @@ SESSION_FILE = CONFIG_DIR / "session.json"
 
 DEFAULTS = {
     "SUPABASE_URL": "https://sandbox.lapius7.com/supabase-chat-app/api",
+    # supabase-pyはsupabase_keyが空文字だと起動時にエラーになるため、意味のない
+    # プレースホルダーを渡す(プロキシ側で実際のANON_KEYに必ず上書きされるので、
+    # ここに何を書いても実際の認証には使われない)。
     "ANON_KEY": "sca-proxy-handles-this",
 }
 
