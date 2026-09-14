@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 )
 
@@ -67,7 +68,7 @@ func fetchPythonFromGitHub(targetDir string) error {
 
 	// GitHubのcodeloadタルボールは "<repo>-<ref>/" というディレクトリの下に全ファイルを置く。
 	// 先頭のtarエントリから動的に推測すると、GitHubが差し込む pax_global_header
-	// (typeflag='g'、パスに"/"を含まない特殊エントリ)を誤って搔んでしまうため、
+	// (typeflag='g'、パスに"/"を含まない特殊エントリ)を誤って掴んでしまうため、
 	// リポジトリ名から直接プレフィックスを組み立てる。
 	repoBase := githubRepo[strings.LastIndex(githubRepo, "/")+1:]
 	prefix := fmt.Sprintf("%s-%s/python/", repoBase, githubRef)
@@ -120,18 +121,45 @@ func fetchPythonFromGitHub(targetDir string) error {
 	return nil
 }
 
+// binaryVersion は `go install .../sca@latest` でビルドされた場合に埋め込まれる
+// モジュールバージョン(例: "v0.3.2")を返す。ソースから直接ビルドした場合など
+// バージョン情報が無い場合は空文字列を返す。
+func binaryVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	if bi.Main.Version == "" || bi.Main.Version == "(devel)" {
+		return ""
+	}
+	return bi.Main.Version
+}
+
 // ensurePythonReady はRealtime機能に必要なPythonヘルパー(未取得ならGitHubから取得)と
 // venvを、無ければ用意する。既に用意済みなら何も表示せず即座に戻る。
 // `sca room who`/`sca room join`実行時に自動で呼ばれるほか、install.shからも
 // インストール直後に呼ばれる(ユーザーが別コマンドを意識する必要をなくすため)。
+//
+// go/がタグ更新されて`sca`本体だけ新しくなっても、以前は一度取得したPython側を
+// 二度と更新しなかった(requirements.txtの有無しか見ていなかった)ため、新しい
+// Pythonコードの変更(例: /inviteコマンド追加)がキャッシュ済み環境に反映されない
+// 問題があった。ビルドに埋め込まれたモジュールバージョンとキャッシュ側に記録した
+// バージョンを突き合わせ、ズレていたら再取得する。
 func ensurePythonReady(cfg Config) error {
 	dir := pythonDir(cfg)
 	venvDir := filepath.Join(dir, ".venv")
 	pipPath := filepath.Join(venvDir, "bin", "pip")
+	versionFile := filepath.Join(dir, ".fetched-version")
 
 	needFetch := false
 	if _, err := os.Stat(filepath.Join(dir, "requirements.txt")); err != nil {
 		needFetch = true
+	}
+	if v := binaryVersion(); v != "" {
+		fetched, _ := os.ReadFile(versionFile)
+		if string(fetched) != v {
+			needFetch = true
+		}
 	}
 	needVenv := false
 	if _, err := os.Stat(pipPath); err != nil {
@@ -141,15 +169,22 @@ func ensurePythonReady(cfg Config) error {
 		return nil
 	}
 
-	fmt.Printf("%s Realtime機能を初回セットアップ中です %s\n\n", cyan("→"), dim("(次回以降は不要です)"))
+	fmt.Printf("%s Realtime機能を準備中です\n\n", cyan("→"))
 
 	if needFetch {
+		if err := os.RemoveAll(dir); err != nil {
+			return err
+		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 		if err := fetchPythonFromGitHub(dir); err != nil {
 			return fmt.Errorf("Pythonヘルパーの取得に失敗しました: %w", err)
 		}
+		if v := binaryVersion(); v != "" {
+			_ = os.WriteFile(versionFile, []byte(v), 0644)
+		}
+		needVenv = true // ディレクトリごと作り直したのでvenvも作り直す
 	}
 
 	sp := newSpinner("Python仮想環境を作成中")
