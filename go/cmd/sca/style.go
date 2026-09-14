@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // colorEnabled はNO_COLOR環境変数やTTY判定に基づき、色付き出力を使うかどうかを決める
@@ -62,4 +64,14 @@ func step(format string, args ...interface{}) {
 func fail(err error) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", red("✗"), err)
 	os.Exit(1)
+}
+
+// confirm はy/nの確認プロンプトを表示し、"y"/"yes"(大文字小文字を無視)の場合のみ trueを返す。
+// 破壊的な操作(ルーム削除等)の前に必ず挿む。
+func confirm(format string, args ...interface{}) bool {
+	fmt.Printf("%s %s %s", yellow("?"), fmt.Sprintf(format, args...), dim("[y/N]: "))
+	reader := bufio.NewReader(os.Stdin)
+	line, _ := reader.ReadString('\n')
+	answer := strings.ToLower(strings.TrimSpace(line))
+	return answer == "y" || answer == "yes"
 }

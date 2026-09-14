@@ -45,6 +45,19 @@ func createRoom(cfg Config, session *Session, name, ownerID string) (*Room, erro
 	return &rooms[0], nil
 }
 
+func deleteRoom(cfg Config, session *Session, roomID string) error {
+	path := fmt.Sprintf("/rest/v1/chat_rooms?id=eq.%s", url.QueryEscape(roomID))
+	data, err := restRequest(cfg, session, http.MethodDelete, path, "chat", nil)
+	if err != nil {
+		return err
+	}
+	var rooms []Room
+	if err := json.Unmarshal(data, &rooms); err != nil || len(rooms) == 0 {
+		return errors.New("削除に失敗しました(自分が作成したルームでない可能性があります)")
+	}
+	return nil
+}
+
 func renameRoom(cfg Config, session *Session, roomID, newName string) (*Room, error) {
 	path := fmt.Sprintf("/rest/v1/chat_rooms?id=eq.%s", url.QueryEscape(roomID))
 	data, err := restRequest(cfg, session, http.MethodPatch, path, "chat", map[string]string{"name": newName})

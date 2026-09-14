@@ -49,6 +49,7 @@ func printUsage() {
 		{"sca room list", "ルーム一覧を表示する"},
 		{"sca room create <name>", "ルームを作成する"},
 		{"sca room rename <room_id_or_name> <new_name>", "ルーム名を変更する(作成者のみ)"},
+		{"sca room delete <room_id_or_name>", "ルームを削除する(作成者のみ、確認あり)"},
 		{"sca room who <room_id_or_name>", "ルームに今いる人を表示する"},
 		{"sca room join <room_id_or_name>", "ルームに入って対話チャットを開始する"},
 	}
@@ -172,6 +173,24 @@ func cmdRoom(args []string) {
 			fail(err)
 		}
 		success("リネームしました %s → %s", dim(room.Name), bold(updated.Name))
+
+	case "delete":
+		if len(args) < 2 {
+			fmt.Fprintln(os.Stderr, "usage: sca room delete <room_id_or_name>")
+			os.Exit(2)
+		}
+		room, err := resolveRoom(cfg, session, args[1])
+		if err != nil {
+			fail(err)
+		}
+		if !confirm("「%s」を削除しますか？メッセージも含めて元に戻せません。", room.Name) {
+			fmt.Println("キャンセルしました。")
+			return
+		}
+		if err := deleteRoom(cfg, session, room.ID); err != nil {
+			fail(err)
+		}
+		success("削除しました %s", dim(room.Name))
 
 	case "who":
 		if len(args) < 2 {

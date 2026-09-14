@@ -34,7 +34,7 @@ func restRequest(cfg Config, session *Session, method, path, schema string, body
 		req.Header.Set("Accept-Profile", schema)
 		req.Header.Set("Content-Profile", schema)
 	}
-	if method == http.MethodPost || method == http.MethodPatch {
+	if method == http.MethodPost || method == http.MethodPatch || method == http.MethodDelete {
 		req.Header.Set("Prefer", "return=representation")
 	}
 
