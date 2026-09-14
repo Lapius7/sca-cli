@@ -12,11 +12,17 @@ import threading
 from collections import deque
 from typing import List, Optional
 
+from postgrest.exceptions import APIError
 from realtime import RealtimePostgresChangesListenEvent, RealtimeSubscribeStates
 from supabase import acreate_client
 
 from . import rooms
 from .profiles import get_display_name, make_cache
+
+# chat_messages.room_idの外部キー違反(23503)は、送信直前に(自分以外の誰かが)
+# ルームそのものを削除した場合に起きる。ユーザーの入力ミスではないので
+# トレースバックを見せず、退室扱いにする。
+_ROOM_DELETED_PG_CODE = "23503"
 
 _PROBE_KEY = "sca-who-probe"
 
@@ -88,6 +94,10 @@ class ChatSession:
         self._channel = None
         self._ready = threading.Event()
         self._stop = threading.Event()
+        # 自分以外の誰か(作成者)がルームを削除した時に立てるフラグ。
+        # input()はブロッキングなので即座には割り込めないが、次にEnterが押された
+        # 瞬間にこれを見てループを終了させる(下のrun_interactive参照)。
+        self.room_deleted = threading.Event()
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
@@ -120,6 +130,12 @@ class ChatSession:
             name = get_display_name(self.sync_client, record["sender_id"], self.profile_cache)
             print(f"\n[{name}] {record.get('content', '')}\n{self.prompt}", end="", flush=True)
 
+        def on_room_deleted(payload: dict) -> None:
+            if self.room_deleted.is_set():
+                return
+            self.room_deleted.set()
+            print(f"\n* このルームは削除されました。Enterを押すと退室します\n{self.prompt}", end="", flush=True)
+
         def on_sync() -> None:
             new_ids = set(self._channel.presence_state().keys())
             for uid in new_ids - self.online_ids:
@@ -140,6 +156,13 @@ class ChatSession:
             table="chat_messages",
             filter=f"room_id=eq.{room_id}",
             callback=on_message,
+        )
+        self._channel.on_postgres_changes(
+            RealtimePostgresChangesListenEvent.Delete,
+            schema="chat",
+            table="chat_rooms",
+            filter=f"id=eq.{room_id}",
+            callback=on_room_deleted,
         )
         self._channel.on_presence_sync(on_sync)
 
@@ -207,12 +230,19 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
     chat = ChatSession(cfg, session, room, user_id, sync_client)
     chat.start()
 
+    room_was_deleted = False
     try:
         while True:
             try:
                 line = input(chat.prompt)
             except (EOFError, KeyboardInterrupt):
                 print()
+                break
+
+            if chat.room_deleted.is_set():
+                # 削除通知(on_room_deleted)は既に表示済みなので、ここでは
+                # 何を入力されていても送信せずそのまま退室する
+                room_was_deleted = True
                 break
 
             line = line.strip()
@@ -245,7 +275,16 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 continue
 
             chat.mark_sending(line)
-            rooms.send_message(sync_client, room["id"], user_id, line)
+            try:
+                rooms.send_message(sync_client, room["id"], user_id, line)
+            except APIError as e:
+                if e.code == _ROOM_DELETED_PG_CODE:
+                    # Realtimeの削除通知(on_room_deleted)より先に送信が走った場合の
+                    # フォールバック。トレースバックは見せず、退室扱いにする
+                    print("\nこのルームは削除されているため送信できませんでした。")
+                    room_was_deleted = True
+                    break
+                raise
     finally:
         chat.stop()
-        print("退室しました。")
+        print("ルームが削除されたため退室しました。" if room_was_deleted else "退室しました。")
