@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # sca (supabase-chat-app CLI) のワンライナーインストーラー。
 #
-#   curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
+#
+# ("| sh" だと環境によってはdash/ash等の非bashシェルが実行され、
+#  下記の`set -o pipefail`やANSI-Cクォート($'...')がエラーになる)
 #
 set -euo pipefail
 

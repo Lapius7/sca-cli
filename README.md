@@ -14,7 +14,7 @@
 ### インストーラースクリプトで(推奨)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
 ```
 
 Go自体のインストール状況を確認し、ビルドの進行状況・インストール先・PATHの警告・次のステップまで1画面で
