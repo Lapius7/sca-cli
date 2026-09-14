@@ -17,10 +17,16 @@ func main() {
 	case "setup":
 		// 通常は`sca room who`/`sca room join`実行時に自動で行われるので
 		// 隠しコマンド扱い(printUsageには出さない)。手動での再実行・トラブル時用。
-		if err := ensurePythonReady(loadConfig()); err != nil {
+		// didWorkがfalse(既に準備済み)の場合だけこちらでメッセージを出す。
+		// trueの場合はensurePythonReady自身が完了メッセージを出し終えているので、
+		// ここで重ねて表示すると同じ内容が二重に出てしまう。
+		didWork, err := ensurePythonReady(loadConfig())
+		if err != nil {
 			fail(err)
 		}
-		success("Realtime機能の準備ができています。")
+		if !didWork {
+			success("Realtime機能の準備ができています。")
+		}
 	case "login":
 		cmdLogin(os.Args[2:])
 	case "logout":

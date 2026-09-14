@@ -54,7 +54,8 @@ fi
 ok "インストール先: ${DIM}${BIN}${RESET}"
 
 printf "\n"
-info "Realtime機能(オンライン一覧・対話チャット)を準備中"
+# "$BIN setup"自体がRealtime機能(オンライン一覧・対話チャット)の準備状況を
+# 見出し・スピナー・完了メッセージ付きで表示するので、ここでは前置きを出さない
 "$BIN" setup || warn "Realtime機能の準備に失敗しました(sca room who/join実行時に再度自動で試みます)"
 
 case ":${PATH}:" in

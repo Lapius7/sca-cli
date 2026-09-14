@@ -147,7 +147,10 @@ func binaryVersion() string {
 // Pythonコードの変更(例: /inviteコマンド追加)がキャッシュ済み環境に反映されない
 // 問題があった。ビルドに埋め込まれたモジュールバージョンとキャッシュ側に記録した
 // バージョンを突き合わせ、ズレていたら再取得する。
-func ensurePythonReady(cfg Config) error {
+// 戻り値のboolは実際にセットアップ作業を行ったかどうか。呼び出し側(`sca setup`)が
+// 「既に準備済みでした」と「今回セットアップしました」を出し分けて、ここで出す
+// スピナー/完了メッセージと重複した文言を表示しないようにするための情報。
+func ensurePythonReady(cfg Config) (bool, error) {
 	dir := pythonDir(cfg)
 	venvDir := filepath.Join(dir, ".venv")
 	pipPath := filepath.Join(venvDir, "bin", "pip")
@@ -168,20 +171,20 @@ func ensurePythonReady(cfg Config) error {
 		needVenv = true
 	}
 	if !needFetch && !needVenv {
-		return nil
+		return false, nil
 	}
 
 	fmt.Printf("%s Realtime機能を準備中です\n\n", cyan("→"))
 
 	if needFetch {
 		if err := os.RemoveAll(dir); err != nil {
-			return err
+			return false, err
 		}
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			return err
+			return false, err
 		}
 		if err := fetchPythonFromGitHub(dir); err != nil {
-			return fmt.Errorf("Pythonヘルパーの取得に失敗しました: %w", err)
+			return false, fmt.Errorf("Pythonヘルパーの取得に失敗しました: %w", err)
 		}
 		if v := binaryVersion(); v != "" {
 			_ = os.WriteFile(versionFile, []byte(v), 0644)
@@ -193,7 +196,7 @@ func ensurePythonReady(cfg Config) error {
 	sp.start()
 	if err := exec.Command("python3", "-m", "venv", venvDir).Run(); err != nil {
 		sp.stop("")
-		return fmt.Errorf("venvの作成に失敗しました(python3コマンドが必要です): %w", err)
+		return false, fmt.Errorf("venvの作成に失敗しました(python3コマンドが必要です): %w", err)
 	}
 	sp.stop(fmt.Sprintf("venvを作成 %s", dim(venvDir)))
 
@@ -208,19 +211,19 @@ func ensurePythonReady(cfg Config) error {
 		// 失敗時だけpipの生ログを出す(成功時にCollecting/Using cached...の
 		// 大量のログをそのまま流すと、何が起きているか分かりにくいため)
 		fmt.Fprintln(os.Stderr, pipOut.String())
-		return fmt.Errorf("pip installに失敗しました: %w", err)
+		return false, fmt.Errorf("pip installに失敗しました: %w", err)
 	}
 	sp.stop("依存パッケージをインストール")
 
 	fmt.Println()
 	success("Realtime機能のセットアップ完了")
-	return nil
+	return true, nil
 }
 
 // execRealtimeHelper はPythonヘルパー(sca_realtime)をサブプロセスとして起動し、
 // 標準入出力をそのまま引き継ぐ(joinは対話セッションのため必須)。
 func execRealtimeHelper(cfg Config, action, roomID, roomName string) error {
-	if err := ensurePythonReady(cfg); err != nil {
+	if _, err := ensurePythonReady(cfg); err != nil {
 		return err
 	}
 	dir := pythonDir(cfg)
