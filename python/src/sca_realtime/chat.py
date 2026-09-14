@@ -216,6 +216,13 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 print(f"ブラウザから: {invite_url}")
                 continue
 
+            if line.startswith("/"):
+                # "/"始まりは未知のスラッシュコマンドの可能性が高いので、誤って
+                # そのままメッセージ送信してしまわないようエラー表示だけして送らない
+                # (メッセージ本文として"/"から始めたい場合は稀なので許容している)
+                print(f"不明なコマンドです: {line}(/who, /invite, /quit が使えます)")
+                continue
+
             chat.mark_sending(line)
             rooms.send_message(sync_client, room["id"], user_id, line)
     finally:
