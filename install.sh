@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # sca (supabase-chat-app CLI) のワンライナーインストーラー。
 #
-#   curl -fsSL https://raw.githubusercontent.com/Lapius7/cli-client_supabase-chat-app/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | sh
 #
 set -euo pipefail
 
-REPO="github.com/lapius7/cli-client_supabase-chat-app"
+REPO="github.com/lapius7/sca-cli"
 PKG="${REPO}/go/cmd/sca"
 
 if [ -t 1 ]; then
@@ -67,4 +67,4 @@ esac
 printf "\n%s🎉 sca のインストールが完了しました！%s\n\n" "$BOLD" "$RESET"
 printf "次のステップ:\n"
 printf "  %s1.%s %ssca login%s    ブラウザでログイン\n" "$BOLD" "$RESET" "$CYAN" "$RESET"
-printf "\n%s詳細:%s https://github.com/Lapius7/cli-client_supabase-chat-app\n" "$DIM" "$RESET"
+printf "\n%s詳細:%s https://github.com/Lapius7/sca-cli\n" "$DIM" "$RESET"

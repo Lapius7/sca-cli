@@ -1,3 +1,3 @@
-module github.com/lapius7/cli-client_supabase-chat-app/go
+module github.com/lapius7/sca-cli/go
 
 go 1.22

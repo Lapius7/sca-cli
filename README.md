@@ -14,7 +14,7 @@
 ### インストーラースクリプトで(推奨)
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Lapius7/cli-client_supabase-chat-app/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | sh
 ```
 
 Go自体のインストール状況を確認し、ビルドの進行状況・インストール先・PATHの警告・次のステップまで1画面で
@@ -23,18 +23,17 @@ Go自体のインストール状況を確認し、ビルドの進行状況・イ
 ### `go install`で直接
 
 ```bash
-go install github.com/lapius7/cli-client_supabase-chat-app/go/cmd/sca@latest
+go install github.com/lapius7/sca-cli/go/cmd/sca@latest
 ```
 
 これでGitHubから直接ソースを取得してビルドし、`$(go env GOPATH)/bin/sca`にバイナリが入る
-(`$(go env GOPATH)/bin`にPATHを通しておけばそのまま`sca`コマンドとして使える)。この場合はPython環境の自動準備は行われないが、
-`sca room who`/`sca room join`を最初に実行した時点でその場で自動的にセットアップされる。
+(`$(go env GOPATH)/bin`にPATHを通しておけばそのまま`sca`コマンドとして使える)。
 
 ### ソースから手元でビルドする場合
 
 ```bash
-git clone https://github.com/lapius7/cli-client_supabase-chat-app
-cd cli-client_supabase-chat-app/go
+git clone https://github.com/lapius7/sca-cli
+cd sca-cli/go
 go build -o sca ./cmd/sca
 sudo mv sca /usr/local/bin/
 ```
@@ -108,7 +107,7 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 - プロキシ本体(`web/sandbox.lapius7.com/supabase-chat-app/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/supabase-chat-app/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダー(とRealtimeのクエリパラメータの`apikey`)を必ず上書きする以外は何もしない
 - `oauth-connect-token`関数(`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`)は`public.oauth_connect_tokens`テーブル(token/redirect_to/expires_at/used_at、RLS有効・ポリシー無しでservice_role以外アクセス不可)にmint/resolveする使い捨てトークンの発行所。redirect_toの妥当性チェックはmint時にここで行う(`sso-handoff`関数も独立して同じチェックをしており、多層防御になっている)。このSupabaseインスタンスは全Edge Functionに`VERIFY_JWT=true`がグローバル設定されている(関数ごとの個別設定は非対応)ため、呼び出し側は`apikey`とは別に`Authorization: Bearer <ANON_KEY以上の有効なJWT>`も必須。sca-proxyはAuthorizationヘッダーが無い場合だけANON_KEYを補うので、CLIはここでも何も送らなくてよい
 - `/oauth/authorize?token=...`のtokenが不正・期限切れ・使用済みの場合、`account.lapius7.com`はトップページへの無言リダイレクトではなく理由付きのエラー画面(`InvalidTokenScreen`)を表示する
-- Realtime機能のPython環境は`sca room who`/`join`実行時に自動セットアップされる(`ensurePythonReady`)。インストーラースクリプトもインストール直後に同じ処理を先回りして呼ぶので、通常はユーザーが手動でセットアップを意識する場面は無い(隠しコマンド`sca setup`で手動再実行も可能)
+- 確認画面(`AccountConfirm`)では、resolveで得た`expires_at`を1秒ごとに再計算する`ExpiryCountdown`でトークンの残り有効期限をライブ表示する(resolve自体はその場で使い捨てにするため、この表示は「本来あとどれくらいで無効になる想定だったか」を示すだけで、期限が来ても以降のログイン継続自体はブロックされない)
 
 ## 既知の制約
 

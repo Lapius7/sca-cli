@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	githubRepo = "lapius7/cli-client_supabase-chat-app"
+	githubRepo = "lapius7/sca-cli"
 	githubRef  = "main"
 )
 
