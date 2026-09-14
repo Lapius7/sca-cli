@@ -21,9 +21,9 @@ var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]
 func isUUID(s string) bool { return uuidPattern.MatchString(s) }
 
 // listRooms は自分が作成したルームだけを返す。chat_rooms は全認証済みユーザーが
-SELECT可能なRLSのため、絞り込み無しで一覧すると他人が作ったルームの存在・名前・IDまで
-見えてしまう(名前を知られただけで入室されるリスクにつながる)。一覧はあくまで
-「自分のルームの管理画面」とし、他人のルームへは`/invite`で渡されたIDでのみ入れるようにする。
+// SELECT可能なRLSのため、絞り込み無しで一覧すると他人が作ったルームの存在・名前・IDまで
+// 見えてしまう(名前を知られただけで入室されるリスクにつながる)。一覧はあくまで
+// 「自分のルームの管理画面」とし、他人のルームへは`/invite`で渡されたIDでのみ入れるようにする。
 func listRooms(cfg Config, session *Session, ownerID string) ([]Room, error) {
 	path := fmt.Sprintf("/rest/v1/chat_rooms?select=*&created_by=eq.%s&order=created_at.desc", url.QueryEscape(ownerID))
 	data, err := restRequest(cfg, session, http.MethodGet, path, "chat", nil)
