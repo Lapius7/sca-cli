@@ -46,28 +46,35 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Printf("%s - supabase-chat-app CLIクライアント\n\n", bold("sca"))
-	fmt.Println(bold("Usage:"))
-	rows := [][2]string{
+	fmt.Printf("%s %s\n\n", bold("sca"), dim("supabase-chat-app CLIクライアント"))
+
+	printUsageSection("認証", [][2]string{
 		{"sca login", "ブラウザでログインする(account.lapius7.comのSSOを利用)"},
 		{"sca login --device", "デバイスコード方式でログインする(SSH越し等、ローカルにブラウザが無い場合)"},
 		{"sca logout", "ローカルのセッションを破棄する"},
-		{"sca whoami", "ログイン中のユーザーを表示する"},
+		{"sca whoami", "ログイン中のユーザーの詳細(連携プロバイダ・MFA状態等)を表示する"},
+	})
+	printUsageSection("ルーム", [][2]string{
 		{"sca room list", "自分が作成したルームの一覧を表示する"},
 		{"sca room create <name>", "ルームを作成する"},
 		{"sca room rename <room_id> <new_name>", "ルーム名を変更する(作成者のみ)"},
 		{"sca room delete <room_id>", "ルームを削除する(作成者のみ、確認あり)"},
 		{"sca room who <room_id>", "ルームに今いる人を表示する"},
 		{"sca room join <room_id>", "ルームに入って対話チャットを開始する"},
-	}
+	})
+
+	fmt.Println(dim("<room_id> はルームIDのみ指定可能です(名前では入室できません)。"))
+	fmt.Println(dim("自分のルームは `sca room list`、他人のルームは /invite で渡されたIDを使ってください。"))
+}
+
+func printUsageSection(title string, rows [][2]string) {
+	fmt.Println(bold(title))
 	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
 	for _, r := range rows {
 		fmt.Fprintf(w, "  %s\t%s\n", cyan(r[0]), r[1])
 	}
 	w.Flush()
 	fmt.Println()
-	fmt.Println(dim("<room_id> はルームIDのみ指定可能です(名前では入室できません)。"))
-	fmt.Println(dim("自分のルームは `sca room list`、他人のルームは /invite で渡されたIDを使ってください。"))
 }
 
 func requireSession() (Config, *Session) {
@@ -106,31 +113,13 @@ func cmdLogin(args []string) {
 	if err != nil {
 		fail(err)
 	}
-	success("ログインしました %s", dim("("+session.Email+")"))
-}
+	success("ログインしました")
 
-func cmdWhoami() {
-	cfg, session := requireSession()
-	userID, err := whoamiUser(cfg, session)
-	if err != nil {
-		fail(err)
+	// サマリー表示はあくまでおまけ(失敗してもログイン自体は成功しているので握りつぶす)。
+	if detail, detailErr := fetchUserDetail(cfg, session); detailErr == nil {
+		profile := getProfile(cfg, session, detail.ID)
+		printLoginSummary(detail, profile)
 	}
-	displayName, handle := getProfileFields(cfg, session, userID)
-
-	fmt.Println(bold("ログイン中のユーザー"))
-	if displayName != "" {
-		fmt.Printf("  %s %s\n", dim("表示名:"), displayName)
-	}
-	if handle != "" {
-		fmt.Printf("  %s %s\n", dim("ハンドル:"), handle)
-	}
-	if displayName == "" && handle == "" {
-		fmt.Printf("  %s %s\n", dim("表示名:"), dim("(未設定)"))
-	}
-	if session.Email != "" {
-		fmt.Printf("  %s %s\n", dim("メール:"), session.Email)
-	}
-	fmt.Printf("  %s %s\n", dim("ユーザーID:"), userID)
 }
 
 func cmdRoom(args []string) {
@@ -151,13 +140,14 @@ func cmdRoom(args []string) {
 			fail(err)
 		}
 		if len(roomList) == 0 {
-			fmt.Println("作成したルームがありません。`sca room create <name>` で作成できます。")
+			fmt.Println(dim("作成したルームがありません。") + cyan(" `sca room create <name>`") + dim(" で作成できます。"))
 			return
 		}
+		fmt.Println(bold(fmt.Sprintf("自分のルーム (%d)", len(roomList))))
 		w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-		fmt.Fprintf(w, "%s\t%s\t%s\n", bold("NAME"), bold("ID"), bold("CREATED AT"))
+		fmt.Fprintf(w, "  %s\t%s\t%s\n", dim("NAME"), dim("ID"), dim("CREATED AT"))
 		for _, r := range roomList {
-			fmt.Fprintf(w, "%s\t%s\t%s\n", bold(r.Name), dim(r.ID), dim(formatDate(r.CreatedAt)))
+			fmt.Fprintf(w, "  %s %s\t%s\t%s\n", cyan("●"), bold(r.Name), dim(r.ID), dim(formatDate(r.CreatedAt)))
 		}
 		w.Flush()
 
