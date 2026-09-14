@@ -106,10 +106,9 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 	}
 	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?token=" + url.QueryEscape(token)
 
-	fmt.Printf("%s ブラウザでログインページを開きます:\n  %s\n", cyan("→"), authURL)
-	if err := openBrowser(authURL); err != nil {
-		warn("ブラウザを自動で開けませんでした。上記URLを手動で開いてください。")
-	}
+	fmt.Printf("%s 以下のURLをクリック(または手動でコピーしてブラウザに貼り付け)して開いてください:\n", cyan("→"))
+	fmt.Printf("  %s\n", authURL)
+	fmt.Printf("  %s\n", dim(fmt.Sprintf("(このリンクは%d分で期限切れになります)", int(loginTimeout.Minutes()))))
 
 	select {
 	case res := <-resultCh:

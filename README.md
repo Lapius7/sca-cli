@@ -48,20 +48,21 @@ sca login         # ブラウザでaccount.lapius7.com(Lapount)にログイン�
 これだけで使い始められる。設定ファイルを書く必要はなく、Realtime機能(`sca room who`/`join`)に
 必要なPython環境もインストーラースクリプトが自動で準備する(`go install`で直接入れた場合や
 準備前に初めて`sca room who`/`join`を実行した場合でも、その場で自動的にセットアップされる)。
-
 CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ
 `https://sandbox.lapius7.com/supabase-chat-app/api/`
 (実体は`web/sandbox.lapius7.com/supabase-chat-app/proxy/main.go`、REST/Auth/Realtime
 WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与はこのプロキシだけが行うため、
-**CLI(Go/Pythonどちら側にも)はANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される前提の非秘匿な
-値(Web版のJSバンドルにもそのまま入っている)なので厉密には埋め込んでも問題ないが、CLIのソースコードに
-一切登場しない構成にすることで「念のため」のリスクも無くしている。
+**CLI(Go/Pythonどちら側にも)はANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される
+前提の非秘匿な値(Web版のJSバンドルにもそのまま入っている)なので厉密には埋め込んでも
+問題ないが、CLIのソースコードに一切登場しない構成にすることで「念のため」のリスクも
+無くしている。
 
 `sca login`はローカルに一時HTTPサーバー(OSに選ばせたランダムなポート)を立て、まず
 `oauth-connect-token`関数(action=mint、sca-proxy経由なのでANON_KEY不要)を呼んで
 転送先(`http://127.0.0.1:<port>/callback`)に対応する使い捨てトークンを発行し、
-`https://account.lapius7.com/oauth/authorize?token=<token>`をブラウザで開く。
-account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
+`https://account.lapius7.com/oauth/authorize?token=<token>`をターミナルに表示する
+(有効期限も併記する。ブラウザは自動で開かず、ユーザー自身がクリックまたはコピーして
+開く)。account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
 自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらの`oauth-connect-token`呼び出し・
 `/oauth/authorize`アクセスはsca-proxyを経由せずaccount.lapius7.com/supabase.lapius7.comに
 直接アクセスする。`/oauth/authorize`は一般的なOAuth認可エンドポイントの見た目に合わせた
@@ -105,7 +106,8 @@ sca room join 雑談部屋2               # 入室して対話チャット開始
 - `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
 - 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`python/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
 - プロキシ本体(`web/sandbox.lapius7.com/supabase-chat-app/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/supabase-chat-app/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダー(とRealtimeのクエリパラメータの`apikey`)を必ず上書きする以外は何もしない
-- `oauth-connect-token`関数(`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`)は`public.oauth_connect_tokens`テーブル(token/redirect_to/expires_at/used_at、RLS有効・ポリシー無しでservice_role以外アクセス不可)にmint/resolveする使い捨てトークンの発行所。redirect_toの妥当性チェックはmint時にここで行う(`sso-handoff`関数も独立して同じチェックをしており、多層防御になっている)
+- `oauth-connect-token`関数(`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`)は`public.oauth_connect_tokens`テーブル(token/redirect_to/expires_at/used_at、RLS有効・ポリシー無しでservice_role以外アクセス不可)にmint/resolveする使い捨てトークンの発行所。redirect_toの妥当性チェックはmint時にここで行う(`sso-handoff`関数も独立して同じチェックをしており、多層防御になっている)。このSupabaseインスタンスは全Edge Functionに`VERIFY_JWT=true`がグローバル設定されている(関数ごとの個別設定は非対応)ため、呼び出し側は`apikey`とは別に`Authorization: Bearer <ANON_KEY以上の有効なJWT>`も必須。sca-proxyはAuthorizationヘッダーが無い場合だけANON_KEYを補うので、CLIはここでも何も送らなくてよい
+- `/oauth/authorize?token=...`のtokenが不正・期限切れ・使用済みの場合、`account.lapius7.com`はトップページへの無言リダイレクトではなく理由付きのエラー画面(`InvalidTokenScreen`)を表示する
 - Realtime機能のPython環境は`sca room who`/`join`実行時に自動セットアップされる(`ensurePythonReady`)。インストーラースクリプトもインストール直後に同じ処理を先回りして呼ぶので、通常はユーザーが手動でセットアップを意識する場面は無い(隠しコマンド`sca setup`で手動再実行も可能)
 
 ## 既知の制約
