@@ -46,6 +46,15 @@ async def _who_once_async(cfg: dict, session: dict, room_id: str, timeout: float
 
     await client.remove_channel(channel)
     await client.realtime.close()
+
+    # ChatSession._async_main と同じ理由(認証タイマー等の裏タスク)で、
+    # asyncio.run()終了時の"Task was destroyed but it is pending!"警告を防ぐ
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    for t in pending:
+        t.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
     return online_ids
 
 
@@ -151,6 +160,17 @@ class ChatSession:
         await self._channel.untrack()
         await self._client.remove_channel(self._channel)
         await self._client.realtime.close()
+
+        # realtime.close()やauth周りの内部実装が、トークン自動更新タイマーや
+        # push応答待ちのタイムアウトなど、自分では止めない裏タスクを残すことがある。
+        # それらが残ったままイベントループを閉じると"Task was destroyed but it is
+        # pending!"という無害だが紛らわしい警告がstderrに出るため、退室時に
+        # 明示的にキャンセルしてから終了する。
+        pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+        for t in pending:
+            t.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
 
     def who(self) -> List[str]:
         return sorted(uid for uid in self.online_ids if uid != self.user_id)
