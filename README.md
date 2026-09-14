@@ -4,38 +4,20 @@
 
 ## 構成
 
-- `go/` — 本体。ログイン(account.lapius7.comのSSOをブラウザ経由で利用)、ルームの一覧/作成/リネーム、REST API呼び出し全般を担当(Go標準ライブラリのみ、依存パッケージなし)
-- `python/` — Realtime(オンライン一覧・対話チャット)専用の内部ヘルパー。Supabase RealtimeのWebSocket(Presence)プロトコルは公式Pythonパッケージ(`supabase`/`realtime`)に頼るため、この部分だけPythonで実装し、Go側からサブプロセスとして呼び出す
+- `cli/` — 本体。ログイン(account.lapius7.comのSSOをブラウザ経由で利用)、ルームの一覧/作成/リネーム、REST API呼び出し全般を担当(Go標準ライブラリのみ、依存パッケージなし)
+- `realtime/` — Realtime(オンライン一覧・対話チャット)専用の内部ヘルパー。Supabase RealtimeのWebSocket(Presence)プロトコルは公式Pythonパッケージ(`supabase`/`realtime`)に頼るため、この部分だけPythonで実装し、Go側からサブプロセスとして呼び出す
 
-ユーザーが直接使うのは`go/`側のバイナリ(`sca`)だけで、Python側は`sca room who` / `sca room join`実行時に裏で自動的に呼ばれる。
+ユーザーが直接使うのは`cli/`側のバイナリ(`sca`)だけで、Python側は`sca room who` / `sca room join`実行時に裏で自動的に呼ばれる。
 
 ## セットアップ
 
-### インストーラースクリプトで(推奨)
+インストールは必ずインストーラースクリプト経由で行う(`go install`を直接叩いたり、
+ソースを手元でビルドしたりはサポートしない。Go自体の有無チェック・ビルド進行状況・
+インストール先・PATHの警告・次のステップまでをこのスクリプトが一貫して案内するため、
+手順がバージョンごとにばらけるのを防ぐ目的)。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
-```
-
-Go自体のインストール状況を確認し、ビルドの進行状況・インストール先・PATHの警告・次のステップまで1画面で
-案内する(内部では`go install`を使うが、表示はこのスクリプトが整えている)。Realtime機能のPython環境もこの時点で自動的に準備される。
-
-### `go install`で直接
-
-```bash
-go install github.com/lapius7/sca-cli/go/cmd/sca@latest
-```
-
-これでGitHubから直接ソースを取得してビルドし、`$(go env GOPATH)/bin/sca`にバイナリが入る
-(`$(go env GOPATH)/bin`にPATHを通しておけばそのまま`sca`コマンドとして使える)。
-
-### ソースから手元でビルドする場合
-
-```bash
-git clone https://github.com/lapius7/sca-cli
-cd sca-cli/go
-go build -o sca ./cmd/sca
-sudo mv sca /usr/local/bin/
 ```
 
 ### 初期設定
@@ -45,8 +27,8 @@ sca login         # ブラウザでaccount.lapius7.com(Lapount)にログイン�
 ```
 
 これだけで使い始められる。設定ファイルを書く必要はなく、Realtime機能(`sca room who`/`join`)に
-必要なPython環境もインストーラースクリプトが自動で準備する(`go install`で直接入れた場合や
-準備前に初めて`sca room who`/`join`を実行した場合でも、その場で自動的にセットアップされる)。
+必要なPython環境もインストーラースクリプトが自動で準備する(準備前に初めて`sca room who`/`join`
+を実行した場合でも、その場で自動的にセットアップされる)。
 CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ
 `https://sandbox.lapius7.com/supabase-chat-app/api/`
 (実体は`web/sandbox.lapius7.com/supabase-chat-app/proxy/main.go`、REST/Auth/Realtime
@@ -109,7 +91,7 @@ sca room join 5f2e...-uuid                          # 入室して対話チャ�
 - `chat`スキーマには「入室中/メンバー」を表す永続テーブルは無い。入退室はRealtime Presenceチャンネル(`room-<roomId>`)への接続/切断だけで表現される、Web版と全く同じ仕組み
 - ルームの削除は作成者のみ可能(`chat.chat_rooms`のRLSに`created_by = auth.uid()`のDELETEポリシーを追加済み)。削除するとメッセージも`ON DELETE CASCADE`で一緒に消える(FK制約側で設定)。CLI(`sca room delete`)・Web版どちらも実行前に確認を挿む。メッセージ自体の編集/削除は引き続き未実装(RLSポリシー未対応)
 - `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
-- 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`python/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
+- 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`realtime/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
 - プロキシ本体(`web/sandbox.lapius7.com/supabase-chat-app/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/supabase-chat-app/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダーを必ず上書きする以外は何もしない。**`apikey`のクエリパラメータ付与は`/realtime/v1/websocket`パスだけに限定すること**(PostgRESTは未知のクエリパラメータを列フィルタとして解釈するため、全パスに付与すると認証成功時にPGRST100エラーで壊れる。この不具合は無効なトークンでのテストでは表面化せず、実トークンで初めて発覚した)
 - `oauth-connect-token`関数(`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`)は`public.oauth_connect_tokens`テーブル(token/redirect_to/expires_at/used_at、RLS有効・ポリシー無しでservice_role以外アクセス不可)にmint/resolveする使い捨てトークンの発行所。redirect_toの妥当性チェックはmint時にここで行う(`sso-handoff`関数も独立して同じチェックをしており、多層防御になっている)。このSupabaseインスタンスは全Edge Functionに`VERIFY_JWT=true`がグローバル設定されている(関数ごとの個別設定は非対応)ため、呼び出し側は`apikey`とは別に`Authorization: Bearer <ANON_KEY以上の有効なJWT>`も必須。sca-proxyはAuthorizationヘッダーが無い場合だけANON_KEYを補うので、CLIはここでも何も送らなくてよい
 - `/oauth/authorize?token=...`のtokenが不正・期限切れ・使用済みの場合、`account.lapius7.com`はトップページへの無言リダイレクトではなく理由付きのエラー画面(`InvalidTokenScreen`)を表示する
