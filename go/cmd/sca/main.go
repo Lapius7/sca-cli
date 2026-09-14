@@ -88,11 +88,26 @@ func cmdLogin(args []string) {
 
 func cmdWhoami() {
 	cfg, session := requireSession()
-	name, id, err := whoamiUser(cfg, session)
+	userID, err := whoamiUser(cfg, session)
 	if err != nil {
 		fail(err)
 	}
-	fmt.Printf("%s %s\n", bold(name), dim("("+id+")"))
+	displayName, handle := getProfileFields(cfg, session, userID)
+
+	fmt.Println(bold("ログイン中のユーザー"))
+	if displayName != "" {
+		fmt.Printf("  %s %s\n", dim("表示名:"), displayName)
+	}
+	if handle != "" {
+		fmt.Printf("  %s %s\n", dim("ハンドル:"), handle)
+	}
+	if displayName == "" && handle == "" {
+		fmt.Printf("  %s %s\n", dim("表示名:"), dim("(未設定)"))
+	}
+	if session.Email != "" {
+		fmt.Printf("  %s %s\n", dim("メール:"), session.Email)
+	}
+	fmt.Printf("  %s %s\n", dim("ユーザーID:"), userID)
 }
 
 func cmdRoom(args []string) {
@@ -129,7 +144,7 @@ func cmdRoom(args []string) {
 			fmt.Fprintln(os.Stderr, "usage: sca room create <name>")
 			os.Exit(2)
 		}
-		_, userID, err := whoamiUser(cfg, session)
+		userID, err := whoamiUser(cfg, session)
 		if err != nil {
 			fail(err)
 		}
