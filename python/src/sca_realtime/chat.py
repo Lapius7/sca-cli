@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from collections import deque
 from typing import List, Optional
 
 from realtime import RealtimePostgresChangesListenEvent, RealtimeSubscribeStates
@@ -64,6 +65,12 @@ class ChatSession:
         self.sync_client = sync_client
         self.profile_cache = make_cache()
         self.online_ids: set = set()
+        # 送信直後に自分のuser_idでechoされてくるメッセージを二重表示しないための
+        # 送信済みキュー(内容ベース、FIFO)。ただしuser_idだけでは同じアカウントで
+        # 別クライアント(ブラウザ等)から送られたメッセージまで無条件に握り潰して
+        # しまうため、「このCLIセッションが実際に送信した分」だけをここで管理する。
+        self._pending_own: deque = deque()
+        self._pending_own_lock = threading.Lock()
 
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -96,8 +103,10 @@ class ChatSession:
 
         def on_message(payload: dict) -> None:
             record = (payload.get("data") or {}).get("record")
-            if not record or record.get("sender_id") == self.user_id:
-                return  # 自分の発言は送信時に既に表示済みなので無視
+            if not record:
+                return
+            if record.get("sender_id") == self.user_id and self._consume_own(record.get("content", "")):
+                return  # このCLIセッション自身が送った発言のecho(二重表示防止)
             name = get_display_name(self.sync_client, record["sender_id"], self.profile_cache)
             print(f"\n[{name}] {record.get('content', '')}\n> ", end="", flush=True)
 
@@ -146,6 +155,21 @@ class ChatSession:
     def who(self) -> List[str]:
         return sorted(uid for uid in self.online_ids if uid != self.user_id)
 
+    def mark_sending(self, content: str) -> None:
+        """このCLIセッションがメッセージを送信する直前に呼ぶ(echo抑制の予約)。"""
+        with self._pending_own_lock:
+            self._pending_own.append(content)
+
+    def _consume_own(self, content: str) -> bool:
+        """echoされてきた内容が自分の送信キューにあれば消費してTrueを返す。
+        無ければ(=同じアカウントの別クライアントからの送信)Falseを返す。"""
+        with self._pending_own_lock:
+            try:
+                self._pending_own.remove(content)
+                return True
+            except ValueError:
+                return False
+
     def stop(self) -> None:
         self._stop.set()
         if self._thread:
@@ -190,6 +214,7 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
                 print(f"ブラウザから: {invite_url}")
                 continue
 
+            chat.mark_sending(line)
             rooms.send_message(sync_client, room["id"], user_id, line)
     finally:
         chat.stop()
