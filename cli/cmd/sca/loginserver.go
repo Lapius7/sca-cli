@@ -131,7 +131,10 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 // 一切送らなくてよい(プロキシがapikeyを付与する)。
 func mintConnectToken(cfg Config, redirectTo string) (string, error) {
 	base := strings.TrimRight(cfg.SupabaseURL, "/")
-	body, _ := json.Marshal(map[string]string{"action": "mint", "redirect_to": redirectTo})
+	// client_nameはLapount側のダッシュボード(連携サービス一覧・アクティビティ履歴)で
+	// 「http://127.0.0.1:xxxx への謎のログイン」ではなく「sca-cli」と分かるようにするための
+	// 表示専用ラベル(認可には使われない)。
+	body, _ := json.Marshal(map[string]string{"action": "mint", "redirect_to": redirectTo, "client_name": "sca-cli"})
 
 	req, err := http.NewRequest(http.MethodPost, base+"/functions/v1/oauth-connect-token", bytes.NewReader(body))
 	if err != nil {
