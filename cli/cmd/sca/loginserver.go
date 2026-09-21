@@ -104,7 +104,7 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ログインURLの発行に失敗しました: %w", err)
 	}
-	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?token=" + url.QueryEscape(token)
+	authURL := strings.TrimRight(accountURL, "/") + "/oauth/v2/authorize?token=" + url.QueryEscape(token)
 
 	fmt.Printf("%s 以下のURLをクリック(または手動でコピーしてブラウザに貼り付け)して開いてください:\n", cyan("→"))
 	fmt.Printf("  %s\n", authURL)
@@ -132,7 +132,7 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 func mintConnectToken(cfg Config, redirectTo string) (string, error) {
 	base := strings.TrimRight(cfg.SupabaseURL, "/")
 	// client_nameはLapount側のダッシュボード(連携サービス一覧・アクティビティ履歴)で
-	// 「http://127.0.0.1:xxxx への謎のログイン」ではなく「sca-cli」と分かるようにするための
+	// 「http://127.0.0.1:xxxx への謞のログイン」ではなく「sca-cli」と分かるようにするための
 	// 表示専用ラベル(認可には使われない)。
 	body, _ := json.Marshal(map[string]string{"action": "mint", "redirect_to": redirectTo, "client_name": "sca-cli"})
 
