@@ -19,8 +19,8 @@ from supabase import acreate_client
 from . import rooms
 from .profiles import get_display_name, make_cache
 
-# chat_messages.room_idの外部キー違反(23503)は、送信直前に(自分以外の誰かが)
-# ルームそのものを削除した場合に起きる。ユーザーの入力ミスではないので
+# chat_messages.room_idの外部キー違反(23503)は、送信直前に(自分以外の誰かが)ルーム
+# そのものを削除した場合に起きる。ユーザーの入力ミスではないので
 # トレースバックを見せず、退室扱いにする。
 _ROOM_DELETED_PG_CODE = "23503"
 
@@ -224,7 +224,7 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
     print(f"=== {room['name']} に入室しました ===")
     print(
         "メッセージを入力してEnterで送信。"
-        " /who でオンライン一覧、 /invite で招待方法、 /quit または Ctrl+C で退室。"
+        " /who でオンライン一覧、 /invite で招待方法、 /quit またはCtrl+C で退室。"
     )
 
     chat = ChatSession(cfg, session, room, user_id, sync_client)
@@ -262,7 +262,7 @@ def run_interactive(cfg: dict, session: dict, room: dict, sync_client, user_id: 
             if line == "/invite":
                 # ルーム名では入室できない(名前を知られただけで他人のルームに
                 # 入られてしまわないよう、joinはIDのみ受け付ける仕様のため)
-                invite_url = f"https://sandbox.lapius7.com/supabase-chat-app/{room['id']}"
+                invite_url = f"https://chatapp.lapius7.com/{room['id']}"
                 print(f"CLIから:     sca room join {room['id']}")
                 print(f"ブラウザから: {invite_url}")
                 continue
