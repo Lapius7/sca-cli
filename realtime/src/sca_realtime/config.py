@@ -6,7 +6,7 @@
 - セッション: `session.json`({"access_token","refresh_token","email"})
 
 既定のSUPABASE_URLはsupabase.lapius7.com自体ではなく、CLI専用のリバースプロキシ
-(sandbox.lapius7.com/supabase-chat-app/api/)を指す。このプロキシがANON_KEYを付与して
+(chatapp.lapius7.com/api/)を指す。このプロキシがANON_KEYを付与して
 中継するため、Python側もANON_KEYを一切持たない(空文字のまま送っても、プロキシ側で上書きされる)。
 """
 
@@ -20,7 +20,7 @@ CONFIG_FILE = CONFIG_DIR / "config.env"
 SESSION_FILE = CONFIG_DIR / "session.json"
 
 DEFAULTS = {
-    "SUPABASE_URL": "https://sandbox.lapius7.com/supabase-chat-app/api",
+    "SUPABASE_URL": "https://chatapp.lapius7.com/api",
     # supabase-pyはsupabase_keyが空文字だと起動時にエラーになるため、意味のない
     # プレースホルダーを渡す(プロキシ側で実際のANON_KEYに必ず上書きされるので、
     # ここに何を書いても実際の認証には使われない)。

@@ -104,7 +104,7 @@ func loginViaBrowser(cfg Config) (*Session, error) {
 	if err != nil {
 		return nil, fmt.Errorf("ログインURLの発行に失敗しました: %w", err)
 	}
-	authURL := strings.TrimRight(accountURL, "/") + "/oauth/authorize?token=" + url.QueryEscape(token)
+	authURL := strings.TrimRight(accountURL, "/") + "/oauth/v2/authorize?token=" + url.QueryEscape(token)
 
 	fmt.Printf("%s 以下のURLをクリック(または手動でコピーしてブラウザに貼り付け)して開いてください:\n", cyan("→"))
 	fmt.Printf("  %s\n", authURL)

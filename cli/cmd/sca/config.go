@@ -7,12 +7,13 @@ import (
 	"strings"
 )
 
-// defaultSupabaseURL はCLI専用のリバースプロキシ(sandbox.lapius7.com/supabase-chat-app/api/、
-// 実体はweb/sandbox.lapius7.com/supabase-chat-app/proxy/main.go)を指す。このプロキシが
-// supabase.lapius7.comへの全リクエストにANON_KEYを付与してから中継するため、CLI自体は
-// ANON_KEYを一切持たない(ソースコードにも実行時の設定にも一度も登場しない)。
+// defaultSupabaseURL はCLI専用のリバースプロキシ(chatapp.lapius7.com/api/、
+// 実体はweb/chatapp.lapius7.com/proxy/main.go。2026-09-17にsandbox.lapius7.com/supabase-chat-app/
+// から独立ドメインへ移設)を指す。このプロキシがsupabase.lapius7.comへの全リクエストに
+// ANON_KEYを付与してから中継するため、CLI自体はANON_KEYを一切持たない
+// (ソースコードにも実行時の設定にも一度も登場しない)。
 // これにより一般ユーザーはconfig.envを一切書かずに`sca login`だけで使い始められる。
-const defaultSupabaseURL = "https://sandbox.lapius7.com/supabase-chat-app/api"
+const defaultSupabaseURL = "https://chatapp.lapius7.com/api"
 
 // Config はconfig.envの内容。PythonHelperDir以外はPython側(sca_realtime/config.py)と
 // フィールド名・ファイルパスの意味を完全に一致させること。
