@@ -9,3 +9,4 @@ realtime/**/*.egg-info/
 
 # ローカル設定(実際のキーが入るため)
 .config/
+/dist/

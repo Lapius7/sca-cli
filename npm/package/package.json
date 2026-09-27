@@ -1,0 +1,28 @@
+{
+  "name": "@lapius/sca-cli",
+  "version": "0.0.0",
+  "description": "chatapp.lapius7.com のチャットをターミナルから使う CLI（sca）",
+  "keywords": ["cli", "chat", "supabase"],
+  "homepage": "https://github.com/Lapius7/sca-cli",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lapius7/sca-cli.git"
+  },
+  "license": "MIT",
+  "bin": {
+    "sca": "bin/sca"
+  },
+  "files": [
+    "bin/sca"
+  ],
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "optionalDependencies": {}
+}

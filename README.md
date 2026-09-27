@@ -20,6 +20,12 @@
 curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
 ```
 
+npm からも入れられる(Go 不要。Linux / macOS / Windows のビルド済みバイナリ):
+
+```bash
+npm i -g @lapius/sca-cli
+```
+
 ### 初期設定
 
 ```bash
