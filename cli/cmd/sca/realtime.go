@@ -127,6 +127,9 @@ func fetchPythonFromGitHub(targetDir string) error {
 // モジュールバージョン(例: "v0.3.2")を返す。ソースから直接ビルドした場合など
 // バージョン情報が無い場合は空文字列を返す。
 func binaryVersion() string {
+	if version != "" {
+		return version // npm 版(-ldflags で埋め込み)
+	}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return ""

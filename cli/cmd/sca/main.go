@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// version は npm 版のビルド時に -ldflags "-X main.version=..." で埋め込む。
+// go install 版では空のままで、binaryVersion がモジュールバージョンを使う
+var version = ""
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -36,6 +40,12 @@ func main() {
 		cmdWhoami()
 	case "room":
 		cmdRoom(os.Args[2:])
+	case "version", "-v", "--version":
+		v := binaryVersion()
+		if v == "" {
+			v = "dev"
+		}
+		fmt.Println("sca " + v)
 	case "-h", "--help", "help":
 		printUsage()
 	default:
