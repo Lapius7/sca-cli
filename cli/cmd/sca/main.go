@@ -46,8 +46,10 @@ func main() {
 			v = "dev"
 		}
 		fmt.Println("sca " + v)
+		fmt.Print(lapiusFooter())
 	case "-h", "--help", "help":
 		printUsage()
+		fmt.Print("\n" + lapiusFooter())
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		printUsage()
