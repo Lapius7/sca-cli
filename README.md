@@ -9,22 +9,28 @@
 
 ユーザーが直接使うのは`cli/`側のバイナリ(`sca`)だけで、Python側は`sca room who` / `sca room join`実行時に裏で自動的に呼ばれる。
 
-## セットアップ
+## インストール
 
-インストールは必ずインストーラースクリプト経由で行う(`go install`を直接叩いたり、
-ソースを手元でビルドしたりはサポートしない。Go自体の有無チェック・ビルド進行状況・
-インストール先・PATHの警告・次のステップまでをこのスクリプトが一貫して案内するため、
-手順がバージョンごとにばらけるのを防ぐ目的)。
+### npm(推奨)
+
+```bash
+npm i -g @lapius/sca-cli
+```
+
+Linux / macOS(x64・arm64)/ Windows(x64)のビルド済みバイナリが入る(Go 不要、Node.js 18 以降)。
+更新も同じコマンド(`npm i -g @lapius/sca-cli`)で行う。
+
+`sca room who` / `sca room join`(Realtime 機能)だけは Python 3 を使う。必要な Python 環境は
+初回実行時に自動で準備される。
+
+### インストーラースクリプト(Go でソースからビルド)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
 ```
 
-npm からも入れられる(Go 不要。Linux / macOS / Windows のビルド済みバイナリ):
-
-```bash
-npm i -g @lapius/sca-cli
-```
+Go が必要。Go の有無チェック・ビルド・インストール先と PATH の案内・Realtime 用の Python 環境の準備までをまとめて行う。
+`go install` を直接叩く方法はサポートしない。
 
 ### 初期設定
 
@@ -80,6 +86,7 @@ sca room rename 5f2e...-uuid "雑談部屋2"             # リネーム(自分�
 sca room delete 5f2e...-uuid                        # 削除(自分が作成したルームのみ、確認あり)
 sca room who 5f2e...-uuid                           # 今そのルームにいる人を表示
 sca room join 5f2e...-uuid                          # 入室して対話チャット開始
+sca version                                         # バージョンを表示
 ```
 
 `<room_id>`は**ルームIDのみ**指定できる(名前では入室できない)。`chat_rooms`は全認証済み
