@@ -14,11 +14,11 @@
 ### npm(推奨)
 
 ```bash
-npm i -g @lapius/sca-cli
+pnpm add -g @lapius/sca-cli
 ```
 
 Linux / macOS(x64・arm64)/ Windows(x64)のビルド済みバイナリが入る(Go 不要、Node.js 18 以降)。
-更新も同じコマンド(`npm i -g @lapius/sca-cli`)で行う。
+更新も同じコマンド(`pnpm add -g @lapius/sca-cli`)で行う。
 
 `sca room who` / `sca room join`(Realtime 機能)だけは Python 3 を使う。必要な Python 環境は
 初回実行時に自動で準備される。
