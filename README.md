@@ -1,123 +1,157 @@
-# sca — chatapp.lapius7.com CLIクライアント
+<div align="center">
 
-`https://chatapp.lapius7.com/` のチャット機能を、ブラウザを開かずターミナルの`sca`コマンドから使うためのCLI。
+<p align="center">
+  <img src="docs/images/banner.png" alt="SCA CLI" width="100%">
+</p>
 
-## 構成
+<p align="center"><b>English</b> | <a href="README.ja.md">日本語</a></p>
 
-- `cli/` — 本体。ログイン(account.lapius7.comのSSOをブラウザ経由で利用)、ルームの一覧/作成/リネーム、REST API呼び出し全般を担当(Go標準ライブラリのみ、依存パッケージなし)
-- `realtime/` — Realtime(オンライン一覧・対話チャット)専用の内部ヘルパー。Supabase RealtimeのWebSocket(Presence)プロトコルは公式Pythonパッケージ(`supabase`/`realtime`)に頼るため、この部分だけPythonで実装し、Go側からサブプロセスとして呼び出す
+<h1 align="center">SCA CLI</h1>
 
-ユーザーが直接使うのは`cli/`側のバイナリ(`sca`)だけで、Python側は`sca room who` / `sca room join`実行時に裏で自動的に呼ばれる。
+<h3 align="center">Chat from the terminal, without opening a browser.</h3>
 
-## インストール
+<p align="center">A CLI for the chat at <code>https://chatapp.lapius7.com/</code>. Create and list rooms, join them, and see who is online, all with the <code>sca</code> command.</p>
 
-### pnpm(推奨)
+<p align="center">
+  <a href="https://github.com/Lapius7/sca-cli/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Lapius7/sca-cli?label=release&style=flat-square&color=e8833a&logo=github"></a>
+  <a href="https://www.npmjs.com/package/@lapius/sca-cli"><img alt="npm" src="https://img.shields.io/npm/v/@lapius/sca-cli?style=flat-square&color=cb3837&logo=npm"></a>
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/github/license/Lapius7/sca-cli?style=flat-square&color=97ca00"></a>
+  <a href="https://go.dev"><img alt="Go" src="https://img.shields.io/badge/language-Go-00add8?style=flat-square&logo=go&logoColor=white"></a>
+  <a href="https://github.com/Lapius7/sca-cli/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/Lapius7/sca-cli?style=flat-square&color=e3b341&logo=github"></a>
+  <a href="https://github.com/Lapius7/sca-cli/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/Lapius7/sca-cli?style=flat-square&color=3b82f6"></a>
+</p>
 
-> このパッケージは **pnpm 前提**です。npm と pnpm の両方に入れると同じコマンドが二重になるため、`pnpm add -g` だけを使ってください。
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#commands">Commands</a> ·
+  <a href="#design-notes">Design notes</a> ·
+  <a href="#known-limitations">Known limitations</a>
+</p>
 
-```bash
+</div>
+
+---
+
+## Features
+
+- **Rooms**: list, create, rename, and delete rooms you created.
+- **Online list**: see who is in a room now (`sca room who`).
+- **Interactive chat**: join a room and chat in the terminal (`sca room join`).
+- **Browser login**: sign in with account.lapius7.com (Lapount) SSO; no config file is needed.
+- **No bundled key**: the CLI holds no `ANON_KEY`; it talks to a dedicated reverse proxy.
+
+## Structure
+
+- `cli/`: the main program. Login (using the account.lapius7.com SSO through the browser), room list/create/rename, and all REST API calls. Go standard library only, no dependencies.
+- `realtime/`: an internal helper for Realtime (online list and interactive chat). The Supabase Realtime WebSocket (Presence) protocol relies on the official Python packages (`supabase` / `realtime`), so only this part is written in Python and the Go side calls it as a subprocess.
+
+You use only the `sca` binary from `cli/`. The Python side runs behind the scenes for `sca room who` and `sca room join`.
+
+## Quick start
+
+**1. Install**
+
+With pnpm (recommended):
+
+```sh
 pnpm add -g @lapius/sca-cli
 ```
 
-Linux / macOS(x64・arm64)/ Windows(x64)のビルド済みバイナリが入る(Go 不要、Node.js 18 以降)。
-更新も同じコマンド(`pnpm add -g @lapius/sca-cli`)で行う。
+This installs a prebuilt binary for Linux, macOS (x64, arm64), or Windows (x64). It needs no Go, only Node.js 18 or later. Run the same command to update.
 
-`sca room who` / `sca room join`(Realtime 機能)だけは Python 3 を使う。必要な Python 環境は
-初回実行時に自動で準備される。
+> [!IMPORTANT]
+> This package assumes **pnpm**. Installing with both npm and pnpm makes the same command appear twice, so use only `pnpm add -g`.
 
-### インストーラースクリプト(Go でソースからビルド)
+Only `sca room who` and `sca room join` (the Realtime features) use Python 3. The Python environment is prepared automatically on first run.
 
-```bash
+With the installer script (builds from source with Go):
+
+```sh
 curl -fsSL https://raw.githubusercontent.com/Lapius7/sca-cli/main/install.sh | bash
 ```
 
-Go が必要。Go の有無チェック・ビルド・インストール先と PATH の案内・Realtime 用の Python 環境の準備までをまとめて行う。
-`go install` を直接叩く方法はサポートしない。
+This needs Go. It checks for Go, builds, explains the install location and PATH, and prepares the Python environment for Realtime. Running `go install` directly is not supported.
 
-### 初期設定
+**2. Log in**
 
-```bash
-sca login         # ブラウザでaccount.lapius7.com(Lapount)にログインし、自動的にセッションを取得する
+```sh
+sca login         # sign in to account.lapius7.com (Lapount) in the browser; the session is obtained automatically
 ```
 
-これだけで使い始められる。設定ファイルを書く必要はなく、Realtime機能(`sca room who`/`join`)に
-必要なPython環境もインストーラースクリプトが自動で準備する(準備前に初めて`sca room who`/`join`
-を実行した場合でも、その場で自動的にセットアップされる)。
-CLIはsupabase.lapius7.comに直接繋がず、専用のリバースプロキシ
-`https://chatapp.lapius7.com/api/`
-(実体は`web/chatapp.lapius7.com/proxy/main.go`、REST/Auth/Realtime
-WebSocketをすべて中継する)経由で通信する。ANON_KEYの付与はこのプロキシだけが行うため、
-**CLI(Go/Pythonどちら側にも)はANON_KEYを一切持たない**。ANON_KEY自体はRLSで保護される
-前提の非秘匿な値(Web版のJSバンドルにもそのまま入っている)なので厳密には埋め込んでも
-問題ないが、CLIのソースコードに一切登場しない構成にすることで「念のため」のリスクも
-無くしている。
+That is all you need. You do not write a config file. The installer script prepares the Python environment for the Realtime features, and if you run `sca room who` or `sca room join` before that, it is set up on the spot.
 
-`sca login`はローカルに一時HTTPサーバー(OSに選ばせたランダムなポート)を立て、まず
-`oauth-connect-token`関数(action=mint、sca-proxy経由なのでANON_KEY不要)を呼んで
-転送先(`http://127.0.0.1:<port>/callback`)に対応する使い捨てトークンを発行し、
-`https://account.lapius7.com/oauth/v2/authorize?token=<token>`をターミナルに表示する
-(有効期限も併記する。ブラウザは自動で開かず、ユーザー自身がクリックまたはコピーして
-開く)。account.lapius7.comのSSOハンドオフでログイン後、そのローカルサーバーにトークンが
-自動的に返ってくる(`gh`/`aws`等のCLIと同じ方式)。こちらの`oauth-connect-token`呼び出し・
-`/oauth/v2/authorize`アクセスはsca-proxyを経由せずaccount.lapius7.com/supabase.lapius7.comに
-直接アクセスする(旧パス`/oauth/authorize`はaccount.lapius7.com側で302リダイレクトされる
-ので引き続き動くが、新規のリンクは`/oauth/v2/authorize`で発行する)。
-`/oauth/v2/authorize`は一般的なOAuth認可エンドポイントの見た目に合わせた
-専用パスで、`chatapp.lapius7.com`・`post.lapius7.com`・`md.lapius7.com`
-などの既存サービスも同じ入口(と同じトークン発行の仕組み)を共有している。実際の転送先URLは
-URLに直接出ず、5分で失効する使い捨てトークンの向こう側にある。
+## Commands
 
-ポートを固定(旧実装は`8765`固定)にしなかったのは、固定ポートだと第三者が事前に
-同じポートを乗っ取っておき、フィッシングリンクでログインの確認画面だけ踏ませて
-セッションを奪うことが理論上可能になるため(このCLIはOSSでポート番号も公開されている)。
-`account.lapius7.com`側は`127.0.0.1`の任意ポートへのハンドオフだけを特例で許可しており
-(`oauth-connect-token`関数・`sso-handoff`関数・`ssoRedirect.ts`)、他ドメインへの緩和は
-一切行っていない。
-
-別のSupabaseインスタンスに直接向けたい場合だけ、`~/.config/sca/config.env`に
-`SUPABASE_URL`/`ANON_KEY`を書くか同名の環境変数を設定して上書きできる(この場合は
-プロキシを経由しないので、自分のインスタンスのANON_KEYを指定する必要がある)。
-
-## 使い方
-
-```bash
-sca whoami                                          # ログイン中のユーザーを表示
-sca room list                                       # 自分が作成したルームの一覧(IDも表示される)
-sca room create "雑談部屋"                           # ルーム作成(作成後そのまま入室する)
-sca room rename 5f2e...-uuid "雑談部屋2"             # リネーム(自分が作成したルームのみ)
-sca room delete 5f2e...-uuid                        # 削除(自分が作成したルームのみ、確認あり)
-sca room who 5f2e...-uuid                           # 今そのルームにいる人を表示
-sca room join 5f2e...-uuid                          # 入室して対話チャット開始
-sca version                                         # バージョンを表示
+```sh
+sca whoami                                          # show the logged-in user
+sca room list                                       # rooms you created (IDs are shown)
+sca room create "chat"                              # create a room (you enter it right after)
+sca room rename 5f2e...-uuid "chat2"                # rename (only rooms you created)
+sca room delete 5f2e...-uuid                        # delete (only rooms you created, asks first)
+sca room who 5f2e...-uuid                           # show who is in the room now
+sca room join 5f2e...-uuid                          # join and start interactive chat
+sca logout                                          # log out
+sca version                                         # show the version
 ```
 
-`<room_id>`は**ルームIDのみ**指定できる(名前では入室できない)。`chat_rooms`は全認証済み
-ユーザーがSELECT可能なRLSのため、名前検索を許すと他人のルーム名を適当に打っただけで
-存在確認やIDの割り出し・入室ができてしまう問題があった。そのため`sca room list`は
-自分が作成したルームだけを表示し、他人のルームへは作成者から`/invite`で渡されたIDで
-のみ参加できるようにしている。
+A room is specified by **ID only**, not by name. `chat_rooms` is readable by every authenticated user under RLS, so allowing name lookup would let anyone check whether a room exists, find its ID, and enter it just by typing a guessed name. For that reason `sca room list` shows only the rooms you created, and other people's rooms can be joined only with an ID that the creator passes you with `/invite`.
 
-`sca room join`の対話セッション中は:
-- 何か入力してEnterでメッセージ送信
-- `/who` で現在のオンライン一覧
-- `/invite` でこのルームへの招待方法(CLIコマンド・ブラウザ用URL)を表示
-- `/quit`・`/leave`・Ctrl+C で退室(退室してもDBには何も残らない。Web版と同じ「切断するだけ」の挙動)
+During `sca room join`:
 
-## 設計メモ
+- Type text and press Enter to send a message.
+- `/who` shows who is online.
+- `/invite` shows how to invite someone to this room (the CLI command and a browser URL).
+- `/quit`, `/leave`, or Ctrl+C leaves the room. Nothing remains in the database after you leave; it only disconnects, as on the web version.
 
-- `chat`スキーマには「入室中/メンバー」を表す永続テーブルは無い。入退室はRealtime Presenceチャンネル(`room-<roomId>`)への接続/切断だけで表現される、Web版と全く同じ仕組み
-- ルームの削除は作成者のみ可能(`chat.chat_rooms`のRLSに`created_by = auth.uid()`のDELETEポリシーを追加済み)。削除するとメッセージも`ON DELETE CASCADE`で一緒に消える(FK制約側で設定)。CLI(`sca room delete`)・Web版どちらも実行前に確認を挟む。メッセージ自体の編集/削除は引き続き未実装(RLSポリシー未対応)
-- `config.env`と`session.json`のパス・形式はGo/Python両方で共有しているので、片方だけ書き換えるとズレる点に注意(基本はGo側の`sca login`だけがセッションを書く)
-- 複数マシンにこのリポジトリをsyncthingで同期している場合、Python venvの場所が既定(`realtime/.venv`)と異なるなら`config.env`に`PYTHON_DIR=...`を追記する
-- プロキシ本体(`web/chatapp.lapius7.com/proxy/`、このリポジトリの外側でVPS上にpm2常駐、nginxが`/api/`パスをこれにproxy_pass)は`net/http/httputil.ReverseProxy`だけで実装したシンプルなリバースプロキシ。REST/Auth/Realtime WebSocketいずれもsupabase.lapius7.comへの単純な中継で、`apikey`ヘッダーを必ず上書きする以外は何もしない。**`apikey`のクエリパラメータ付与は`/realtime/v1/websocket`パスだけに限定すること**(PostgRESTは未知のクエリパラメータを列フィルタとして解釈するため、全パスに付与すると認証成功時にPGRST100エラーで壊れる。この不具合は無効なトークンでのテストでは表面化せず、実トークンで初めて発覚した)
-- `oauth-connect-token`関数(`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`)は`public.oauth_connect_tokens`テーブル(token/redirect_to/expires_at/used_at、RLS有効・ポリシー無しでservice_role以外アクセス不可)にmint/resolveする使い捨てトークンの発行所。redirect_toの妥当性チェックはmint時にここで行う(`sso-handoff`関数も独立して同じチェックをしており、多層防御になっている)。このSupabaseインスタンスは全Edge Functionに`VERIFY_JWT=true`がグローバル設定されている(関数ごとの個別設定は非対応)ため、呼び出し側は`apikey`とは別に`Authorization: Bearer <ANON_KEY以上の有効なJWT>`も必須。sca-proxyはAuthorizationヘッダーが無い場合だけANON_KEYを補うので、CLIはここでも何も送らなくてよい
-- `/oauth/v2/authorize?token=...`のtokenが不正・期限切れ・使用済みの場合、`account.lapius7.com`はトップページへの無言リダイレクトではなく理由付きのエラー画面(`InvalidTokenScreen`)を表示する
-- 確認画面(`AccountConfirm`)では、resolveで得た`expires_at`を1秒ごとに再計算する`ExpiryCountdown`でトークンの残り有効期限をライブ表示する(resolve自体はその場で使い捨てにするため、この表示は「本来あとどれくらいで無効になる想定だったか」を示すだけで、期限が来ても以降のログイン継続自体はブロックされない)
-- Realtime機能のPython環境は`sca room who`/`join`実行時に自動セットアップされる(`ensurePythonReady`)。インストーラースクリプトもインストール直後に同じ処理を先回りして呼ぶので、通常はユーザーが手動でセットアップを意識する場面は無い(隠しコマンド`sca setup`で手動再実行も可能)。Python側は常にGitHubの`main`ブランチHEADから取得するが、以前は一度取得したら二度と更新しなかった(requirements.txtの有無しか見ていなかった)ため、`sca`本体だけタグ更新しても新しいPythonコードの変更(`/invite`追加等)が反映されない問題があった。ビルドに埋め込まれた`go install`のモジュールバージョン(`runtime/debug.ReadBuildInfo`)とキャッシュ側の記録を突き合わせ、ズレていたら再取得するようにしている
-- `chat.py`の`on_message`は、送られてきたメッセージの`sender_id`が自分のuser_idと一致するかどうかだけで「CLIが送信したものだから表示しない(二重表示防止)」と判定していたが、これだと同じアカウントでブラウザからも送った場合にそのメッセージまで握り潰されてしまうバグがあった。現在はこのCLIセッションが実際に送信した内容だけを内容ベースの送信済みキュー(`ChatSession._pending_own`)で管理し、それ以外は自分のuser_idと一致していても表示する
-- 退室(`/quit`等)・`sca room who`終了時、`supabase-auth`のトークン自動更新タイマーや`realtime`のpushタイムアウトなど、ライブラリ内部が自分では止めない裏タスクが残ったままイベントループを閉じると`Task was destroyed but it is pending!`という警告がstderrに出ることがあった(無害だが紛らわしい)。`realtime.close()`後に`asyncio.all_tasks()`で残っているタスクを明示的に`cancel()`してから終了するようにして解消した
+## Configuration
 
-## 既知の制約
+Normally you need no configuration. To point the CLI directly at another Supabase instance, write `SUPABASE_URL` and `ANON_KEY` in `~/.config/sca/config.env`, or set environment variables with the same names. This skips the proxy, so you must give the `ANON_KEY` of your own instance.
 
-- Presenceのキーはユーザー自身のuser_idなので、同じアカウントで複数のクライアント(CLI+ブラウザ等)を同時に開いても1人としてカウントされる(Web版と同じ仕様)
-- `sca login`は`sca`を実行しているマシン自身でブラウザが開ける環境が前提(ローカルPC等)。SSH先のサーバー上でそのまま実行しても、ブラウザが手元のマシンで開いてもコールバックはSSH先に届かない。リモートで使う場合はターミナルに表示されるポート番号を確認して`ssh -L <そのポート>:localhost:<そのポート> ...`のようにポートフォワードすること(ポートは毎回ランダムなので、ログを見てから接続する必要がある)
+## Safety
+
+> [!NOTE]
+> The CLI does not talk to supabase.lapius7.com directly. It goes through the reverse proxy `https://chatapp.lapius7.com/api/` (implemented in `web/chatapp.lapius7.com/proxy/main.go`, relaying REST, Auth, and the Realtime WebSocket). Only this proxy adds the `ANON_KEY`, so **neither the Go side nor the Python side of the CLI holds the `ANON_KEY`**. The `ANON_KEY` is a non-secret value that relies on RLS (it is in the web version's JS bundle as is), so embedding it would be acceptable in a strict sense, but keeping it out of the CLI source removes even that "just in case" risk.
+
+<details>
+<summary>How <code>sca login</code> works</summary>
+
+`sca login` starts a temporary local HTTP server on a random port chosen by the OS. It first calls the `oauth-connect-token` function (action=mint; through sca-proxy, so no `ANON_KEY` is needed) to issue a one-time token for the redirect target (`http://127.0.0.1:<port>/callback`). It then prints `https://account.lapius7.com/oauth/v2/authorize?token=<token>` in the terminal with its expiry. The browser is not opened automatically; you click or copy the link. After you log in through the account.lapius7.com SSO handoff, the token returns to the local server automatically (the same method as CLIs such as `gh` and `aws`). The `oauth-connect-token` call and the `/oauth/v2/authorize` access go directly to account.lapius7.com and supabase.lapius7.com, not through sca-proxy. The old path `/oauth/authorize` is redirected with a 302 by account.lapius7.com and still works, but new links are issued with `/oauth/v2/authorize`. `/oauth/v2/authorize` is a dedicated path that looks like a common OAuth authorization endpoint; existing services such as `chatapp.lapius7.com`, `post.lapius7.com`, and `md.lapius7.com` share the same entry point and the same token mechanism. The real redirect URL does not appear in the URL; it sits behind a one-time token that expires in 5 minutes.
+
+The port is not fixed (the old implementation used a fixed `8765`). With a fixed port, a third party could in theory take that port beforehand, make you open a phishing link that shows only the login confirmation screen, and steal the session (this CLI is open source and its port number is public). account.lapius7.com allows a handoff only to an arbitrary port on `127.0.0.1` as a special case (`oauth-connect-token` function, `sso-handoff` function, `ssoRedirect.ts`) and loosens nothing for other domains.
+
+</details>
+
+## Design notes
+
+<details>
+<summary>Design notes (server side and internals)</summary>
+
+- The `chat` schema has no persistent table for "in the room" or members. Joining and leaving are expressed only by connecting to and disconnecting from the Realtime Presence channel (`room-<roomId>`), exactly as on the web version.
+- Only the creator can delete a room (a DELETE policy with `created_by = auth.uid()` was added to the RLS of `chat.chat_rooms`). Deleting also removes its messages through `ON DELETE CASCADE` (set on the FK). Both the CLI (`sca room delete`) and the web version ask before deleting. Editing and deleting messages is still not implemented (no RLS policy).
+- The paths and formats of `config.env` and `session.json` are shared by Go and Python, so changing only one side makes them drift. Normally only `sca login` on the Go side writes the session.
+- If you sync this repository across machines with syncthing and the Python venv is not at the default location (`realtime/.venv`), add `PYTHON_DIR=...` to `config.env`.
+- The proxy itself (`web/chatapp.lapius7.com/proxy/`, outside this repository, kept running by pm2 on a VPS, with nginx passing the `/api/` path to it) is a simple reverse proxy built only on `net/http/httputil.ReverseProxy`. REST, Auth, and the Realtime WebSocket are plain relays to supabase.lapius7.com, and it does nothing except always overwrite the `apikey` header. **Add the `apikey` query parameter only on the `/realtime/v1/websocket` path.** PostgREST treats unknown query parameters as column filters, so adding it to every path breaks authenticated requests with a PGRST100 error. This bug did not show up in tests with an invalid token and was found only with a real token.
+- The `oauth-connect-token` function (`web/supabase.lapius7.com/volumes/functions/oauth-connect-token/`) issues one-time tokens by mint and resolve against the `public.oauth_connect_tokens` table (token, redirect_to, expires_at, used_at; RLS enabled with no policy, so only service_role can access it). It validates `redirect_to` at mint time (the `sso-handoff` function does the same check independently, for defense in depth). This Supabase instance sets `VERIFY_JWT=true` globally for all Edge Functions (per-function settings are not supported), so callers need an `Authorization: Bearer <a valid JWT at ANON_KEY level or above>` in addition to `apikey`. sca-proxy adds the `ANON_KEY` only when there is no Authorization header, so the CLI sends nothing here either.
+- If the token in `/oauth/v2/authorize?token=...` is invalid, expired, or used, account.lapius7.com shows an error screen with the reason (`InvalidTokenScreen`) instead of a silent redirect to the top page.
+- The confirmation screen (`AccountConfirm`) shows the token's remaining lifetime live with `ExpiryCountdown`, which recalculates the `expires_at` from resolve every second. Resolve consumes the token on the spot, so this only shows how long it was expected to stay valid; reaching the deadline does not block continuing the login.
+- The Python environment for the Realtime features is set up automatically when you run `sca room who` or `sca room join` (`ensurePythonReady`). The installer script calls the same step right after installing, so you normally do not need to think about it (the hidden command `sca setup` re-runs it by hand). The Python side is always fetched from the HEAD of the GitHub `main` branch. It used to be fetched once and never updated (only the presence of `requirements.txt` was checked), so a tag update of `sca` alone did not bring new Python changes such as `/invite`. Now the module version embedded at build time by `go install` (`runtime/debug.ReadBuildInfo`) is compared with the cache record, and the code is fetched again when they differ.
+- In `chat.py`, `on_message` used to hide a message only because its `sender_id` matched your user ID ("the CLI sent it, so do not show it again"). That also swallowed messages you sent from a browser with the same account. Now only content that this CLI session actually sent is tracked in a content-based sent queue (`ChatSession._pending_own`), and everything else is shown even if the user ID matches yours.
+- When leaving (`/quit` and so on) or finishing `sca room who`, background tasks that libraries do not stop on their own (the `supabase-auth` token refresh timer, the `realtime` push timeout) could remain when the event loop closed, and a `Task was destroyed but it is pending!` warning could appear on stderr (harmless but confusing). After `realtime.close()`, the remaining tasks from `asyncio.all_tasks()` are now cancelled explicitly before exit.
+
+</details>
+
+## Known limitations
+
+- The Presence key is your own user ID, so opening several clients (CLI and browser, for example) with the same account counts as one person, the same as the web version.
+- `sca login` assumes you can open a browser on the machine that runs `sca` (a local PC and so on). If you run it on an SSH server and open the browser on your own machine, the callback does not reach the server. For remote use, check the port number printed in the terminal and forward it, for example `ssh -L <that port>:localhost:<that port> ...`. The port is random each time, so connect after you see the log.
+
+> [!NOTE]
+> This README was rewritten from the previous text, and the commands were checked against `cli/cmd/sca/main.go`. The CLI, the proxy, and the Supabase functions were not run for this rewrite. The proxy and the Supabase functions are outside this repository, so the server-side notes are carried over from the previous README without checking.
+
+## Development
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`. It publishes to npm and attaches binaries to the GitHub Release, with npm Trusted Publisher authentication (no token). `npm/build.mjs` builds the npm package.
+
+## License
+
+MIT
